@@ -1,0 +1,44 @@
+# ROS 2 build directories
+/build/
+install/
+log/
+
+# ROS 2 workspace files
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+
+# Python virtual environment
+.env/
+venv/
+env/
+ENV/
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+Makefile
+cmake_install.cmake
+CTestTestfile.cmake
+
+# ROS 2 dependencies (if using venv)
+/lib/python*/dist-packages/
+
+# VS Code settings
+.vscode/
+
+# JetBrains IDEs (e.g., PyCharm, IntelliJ)
+.idea/
+
+# Pytest
+*.coveragerc
+.tox/
+.nox/
+coverage.xml
+*.cover
+*.hypothesis/
+
+# User-specific files
+.DS_Store
+Thumbs.db
