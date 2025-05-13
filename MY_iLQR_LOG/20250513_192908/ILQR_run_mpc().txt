@@ -1,0 +1,4 @@
+============= phase: init=============
+[mpc_control_loop] END phase: init, duration: 0.018 s
+============= phase: init=============
+takeoff

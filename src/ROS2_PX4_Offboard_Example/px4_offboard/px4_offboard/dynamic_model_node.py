@@ -16,7 +16,7 @@ from sensor_msgs.msg import Imu, MagneticField, FluidPressure
 import os
 
 import csv
-
+import time
 from std_msgs.msg import String
 from datetime import datetime
 from jax import grad  
@@ -27,6 +27,11 @@ from rclpy.qos import QoSProfile
 from nav_msgs.msg import Odometry  # inner ROS2 EKF
 
 import threading
+from jax import jit
+
+
+import asyncio
+import aiofiles
 
 # ============ CONSTANTS ====================================================
 SEA_LEVEL_PRESSURE = 101325.0
@@ -41,8 +46,10 @@ MOTOR_TAU = 0.02
 MAX_SPEED = 2100.0
 DRAG = 0.1
 MAX_RATE = 25.0  # ограничение на угловую скорость (roll/pitch) рад/с
+ 
 # ===== MATRIX OPERTIONS =====
 # QUATERNION UTILS (SCIPY-based)
+@jit
 def quat_multiply(q1, q2):
     """
     Умножение кватернионов q1 * q2
@@ -50,24 +57,27 @@ def quat_multiply(q1, q2):
     """
     w1, x1, y1, z1 = q1
     w2, x2, y2, z2 = q2
-    w = w1*w2 - x1*x2 - y1*y2 - z1*z2
-    x = w1*x2 + x1*w2 + y1*z2 - z1*y2
-    y = w1*y2 - x1*z2 + y1*w2 + z1*x2
-    z = w1*z2 + x1*y2 - y1*x2 + z1*w2
+    w = w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2
+    x = w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2
+    y = w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2
+    z = w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2
     return jnp.array([w, x, y, z])
 
+@jit
 def quat_to_rot_matrix(q):
     x, y, z, w = q
-    xx, yy, zz = x*x, y*y, z*z
-    xy, xz, yz = x*y, x*z, y*z
-    wx, wy, wz = w*x, w*y, w*z
+    xx, yy, zz = x * x, y * y, z * z
+    xy, xz, yz = x * y, x * z, y * z
+    wx, wy, wz = w * x, w * y, w * z
 
     return jnp.array([
-        [1 - 2*(yy + zz),     2*(xy - wz),     2*(xz + wy)],
-        [    2*(xy + wz), 1 - 2*(xx + zz),     2*(yz - wx)],
-        [    2*(xz - wy),     2*(yz + wx), 1 - 2*(xx + yy)]
+        [1 - 2 * (yy + zz),     2 * (xy - wz),     2 * (xz + wy)],
+        [    2 * (xy + wz), 1 - 2 * (xx + zz),     2 * (yz - wx)],
+        [    2 * (xz - wy),     2 * (yz + wx), 1 - 2 * (xx + yy)]
     ])
 
+
+@jit
 def f(x, u, dt):
     m = MASS
     I = INERTIA
@@ -120,7 +130,10 @@ def f(x, u, dt):
 
     x_next = jnp.concatenate([new_pos, new_vel, new_quat, new_omega])  # собираем новое состояние
     return x_next
- 
+
+
+
+
 class MyEKF(ExtendedKalmanFilter):
     def __init__(self, dim_x, dim_z): 
         super().__init__(dim_x, dim_z)
@@ -143,6 +156,8 @@ class DynamicModelNode(Node):
         )
         self.datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.log_base = os.path.join("MY_LOG", self.datetime)
+
+        self.ilqr_log_base = os.path.join("MY_iLQR_LOG", self.datetime)
         # == == == == == == == == == == == == == =PUBLISHERS= == == == == == == == == == == == == == == == == == == == == == ==
         # паблишеры для ekf_filter_node
         self.imu_pub = self.create_publisher(Imu, '/imu/data', qos_profile)
@@ -289,6 +304,8 @@ class DynamicModelNode(Node):
         self.cost_final = 0.0
         self.done = False 
         self.to_client_f = False
+
+        self.mpc_lock = threading.Lock()
          
      
     def actuator_outputs_callback(self, msg: ActuatorOutputs):
@@ -305,7 +322,7 @@ class DynamicModelNode(Node):
     def client_msg_callback(self, msg):
         """GET CLIENT MESSAGES"""
         command = msg.data.strip().lower()
-        self.get_logger().info(f"Received command: {command}")
+        #self.get_logger().info(f"Received command: {command}")
         if command == "takeoff":
             self.phase = command
             self.to_client_f = True
@@ -315,11 +332,44 @@ class DynamicModelNode(Node):
 
     # =============================нет колбека========================================
     def odom_callback(self, msg: Odometry):
-        self.get_logger().info("odom_callback")
+        #self.get_logger().info("odom_callback")
         self.odom_callback_position = [msg.pose.pose.position.x, msg.pose.pose.position.y, msg.pose.pose.position.z]
         self.odom_callback_orientation = [msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, msg.pose.pose.orientation.z, msg.pose.pose.orientation.w]
-        self.get_logger().info(f"{self.odom_callback_orientation} ")
+        #self.get_logger().info(f"{self.odom_callback_orientation} ")
     # ==============================нет колбека=======================================
+
+    def log_optimized_traj(self):
+        log_base = self.log_base
+        file_path = os.path.join(log_base, 'optimized_traj_log.csv')
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+        X_flat = np.asarray(self.X_opt).flatten()
+        u_flat = np.asarray(self.u_optimal).flatten()
+        i_final = [self.i_final]
+        cost_final = [self.cost_final]
+
+        data = [X_flat, u_flat, i_final, cost_final]
+        labels = ['X_opt', 'u_opt', 'i_final', 'cost_final']
+
+        new_file = not os.path.exists(file_path)
+
+        if new_file:
+            headers = []
+            for label, arr in zip(labels, data):
+                if len(arr) > 1:
+                    headers.extend([f"{label}[{i}]" for i in range(len(arr))])
+                else:
+                    headers.append(label)
+
+            with open(file_path, mode='w', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow(headers)
+
+        row_values = [float(v) for arr in data for v in arr]
+
+        with open(file_path, mode='a', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(row_values)
 
     def send_optimized_traj(self):
         self.get_logger().info(f"send_optimized_traj")
@@ -334,6 +384,9 @@ class DynamicModelNode(Node):
             msg.cost_final = float(self.cost_final)
             msg.done = self.done
             self.pub_optimized_traj.publish(msg)
+            
+            # Логирование в CSV
+            self.log_optimized_traj()
 
     def quaternion_from_roll(self, roll_rad):
         r = R.from_euler('x', roll_rad)
@@ -343,20 +396,135 @@ class DynamicModelNode(Node):
         server_msg = String()
         server_msg.data = msg 
         self.server_pub.publish(server_msg)
+    
+    def log_ilqr(self, data: str):
+        os.makedirs(self.ilqr_log_base, exist_ok=True)
+        log_path = os.path.join(self.ilqr_log_base, "ILQR_run_mpc().txt")
+        with open(log_path, "a") as f:
+            f.write(data + "\n")
 
-    def mpc_control_loop(self):
-        self.get_logger().info(f"mpc_control_loop")
-        def run_mpc():
-            try:
-                self.get_logger().info(f"mpc_control_loop {self.phase}")
+    def run_mpc(self):
+        self.log_ilqr(">>> run_mpc started")
+        start_time = time.time()
+        self.log_ilqr(f"============= phase: {self.phase}=============")#self.get_logger().info(f"[mpc_control_loop] START phase: {self.phase}")
+        try: 
+            if self.phase != 'init':
+                current_time = self.get_clock().now().nanoseconds * 1e-9
+                x0 = self.ekf.x.copy()  # [13]
+                u_init = jnp.tile(self.actuator_motors, (self.horizon, 1))  # [horizon, 4]
+                x_target_traj = jnp.zeros((self.horizon + 1, 13))
+                u_target_traj = jnp.tile(self.actuator_motors, (self.horizon, 1))  # [horizon, 4]
+                        
+                if self.phase == 'takeoff':
+                    self.log_ilqr("takeoff")
+                    for i in range(self.horizon):
+                        pos = x0[0:3].copy().at[2].set(self.takeoff_altitude)
+                        vel = jnp.zeros(3)
+                        q = jnp.array([0.0, 0.0, 0.0, 1.0])
+                        omega = jnp.zeros(3)
+                        x_target_traj = x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+                        u_target_traj = u_target_traj.at[i].set(self.motor_inputs.copy())
+                    x_target_traj = x_target_traj.at[self.horizon].set(x_target_traj[self.horizon - 1])
+
+                    if abs(self.ekf.x[2] - self.takeoff_altitude) < self.takeoff_tol:
+                        self.phase = 'flip'
+                        self.flip_started_time = current_time
+                        self.send_msg_to_client("flip")
+
+                elif self.phase == 'flip':
+                    self.log_ilqr("flip")
+                    t_local = jnp.clip(current_time - self.flip_started_time, 0.0, self.flip_duration)
+                    roll_expected = 2 * jnp.pi * t_local / self.flip_duration
+                    q_current = self.ekf.x[6:10]
+                    roll_current, _, _ = self.euler_from_quaternion(q_current)
+                    roll_error = roll_expected - roll_current
+                    gain_base = 0.8
+                    gain_adaptive = gain_base + 0.3 * jnp.tanh(roll_error)
+                    roll_target = roll_current + gain_adaptive * roll_error
+
+                    for i in range(self.horizon):
+                        alpha_i = i / self.horizon
+                        angle_i = roll_target * alpha_i
+                        pos = x0[0:3]
+                        vel = jnp.zeros(3)
+                        q = self.quaternion_from_roll(angle_i)
+                        omega_magnitude = 2 * jnp.pi / self.flip_duration + 0.2 * roll_error
+                        omega = jnp.array([omega_magnitude, 0.0, 0.0])
+                        x_target_traj = x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+                        u_target_traj = u_target_traj.at[i].set(self.recovery_thrust.copy())
+                    x_target_traj = x_target_traj.at[self.horizon].set(x_target_traj[self.horizon - 1])
+
+                    if abs(roll_current) >= 2 * jnp.pi * 0.95:
+                        self.phase = 'recovery'
+                        self.recovery_start_time = current_time
+
+                elif self.phase == 'recovery':
+                    t_local = jnp.clip(current_time - self.recovery_start_time, 0.0, self.recovery_time)
+                    roll_desired = 2 * jnp.pi * (1 - t_local / self.recovery_time)
+                    q_current = self.ekf.x[6:10]
+                    roll_current, _, _ = self.euler_from_quaternion(q_current)
+                    roll_error = roll_desired - roll_current
+                    gain = 0.6 + 0.4 * (abs(roll_error) / jnp.pi)
+                    roll_target = roll_current + gain * roll_error
+
+                    for i in range(self.horizon):
+                        alpha_i = i / self.horizon
+                        angle_i = roll_current + alpha_i * (roll_target - roll_current)
+                        pos = x0[0:3]
+                        vel = jnp.zeros(3)
+                        q = self.quaternion_from_roll(angle_i)
+                        omega_mag = -2 * jnp.pi / self.recovery_time * (1 + 0.2 * abs(roll_error) / jnp.pi)
+                        omega = jnp.array([omega_mag, 0.0, 0.0])
+                        x_target_traj = x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+                        u_target_traj = u_target_traj.at[i].set(self.recovery_thrust.copy())
+                    x_target_traj = x_target_traj.at[self.horizon].set(x_target_traj[self.horizon - 1])
+
+                    if abs(roll_current) <= self.roll_abs_tol:
+                        self.phase = 'land'
+
+                elif self.phase == 'land':
+                    self.to_client_f = False
+                    self.optimized_traj_f = False
+                    self.done = True
+                    self.send_msg_to_client("land")
+
+                self.log_ilqr(f"current_time={current_time} x0={x0} u_init={u_init} \
+                                      x_target_traj={x_target_traj} u_target_traj={u_target_traj}")
+                # Вызов MPC
+                self.X_opt, self.u_optimal, self.i_final, self.cost_final = self.mpc.step(
+                    x0=x0,
+                    u_init=u_init,
+                    x_target_traj=x_target_traj,
+                    u_target_traj=u_target_traj,
+                )
+                self.send_optimized_traj()
+                
+        except Exception as e:
+            self.get_logger().error(f"Ошибка при выполнении MPC: {str(e)}")
+                # Выводим traceback ошибки для детальной диагностики
+            import traceback
+            self.get_logger().error(traceback.format_exc())
+        finally:
+            end_time = time.time()
+            elapsed = end_time - start_time
+            self.get_logger().info(f"[mpc_control_loop] END phase: {self.phase}, duration: {elapsed:.3f} s")
+            self.mpc_running = False
+
+    def run_mpc_thread(self):
+        #self.log_ilqr(">>> run_mpc started")
+        with self.mpc_lock:
+            start_time = time.time()
+            self.log_ilqr(f"============= phase: {self.phase}=============")#self.get_logger().info(f"[mpc_control_loop] START phase: {self.phase}")
+            try: 
                 if self.phase != 'init':
                     current_time = self.get_clock().now().nanoseconds * 1e-9
                     x0 = self.ekf.x.copy()  # [13]
                     u_init = jnp.tile(self.actuator_motors, (self.horizon, 1))  # [horizon, 4]
-
                     x_target_traj = jnp.zeros((self.horizon + 1, 13))
                     u_target_traj = jnp.tile(self.actuator_motors, (self.horizon, 1))  # [horizon, 4]
+                            
                     if self.phase == 'takeoff':
+                        self.log_ilqr("takeoff")
                         for i in range(self.horizon):
                             pos = x0[0:3].copy().at[2].set(self.takeoff_altitude)
                             vel = jnp.zeros(3)
@@ -371,79 +539,92 @@ class DynamicModelNode(Node):
                             self.flip_started_time = current_time
                             self.send_msg_to_client("flip")
 
-                    elif self.phase == 'flip':
-                        t_local = jnp.clip(current_time - self.flip_started_time, 0.0, self.flip_duration)
-                        roll_expected = 2 * jnp.pi * t_local / self.flip_duration
-                        q_current = self.ekf.x[6:10]
-                        roll_current, _, _ = self.euler_from_quaternion(q_current)
-                        roll_error = roll_expected - roll_current
-                        gain_base = 0.8
-                        gain_adaptive = gain_base + 0.3 * jnp.tanh(roll_error)
-                        roll_target = roll_current + gain_adaptive * roll_error
+                        elif self.phase == 'flip':
+                            self.log_ilqr("flip")
+                            t_local = jnp.clip(current_time - self.flip_started_time, 0.0, self.flip_duration)
+                            roll_expected = 2 * jnp.pi * t_local / self.flip_duration
+                            q_current = self.ekf.x[6:10]
+                            roll_current, _, _ = self.euler_from_quaternion(q_current)
+                            roll_error = roll_expected - roll_current
+                            gain_base = 0.8
+                            gain_adaptive = gain_base + 0.3 * jnp.tanh(roll_error)
+                            roll_target = roll_current + gain_adaptive * roll_error
 
-                        for i in range(self.horizon):
-                            alpha_i = i / self.horizon
-                            angle_i = roll_target * alpha_i
-                            pos = x0[0:3]
-                            vel = jnp.zeros(3)
-                            q = self.quaternion_from_roll(angle_i)
-                            omega_magnitude = 2 * jnp.pi / self.flip_duration + 0.2 * roll_error
-                            omega = jnp.array([omega_magnitude, 0.0, 0.0])
-                            x_target_traj = x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
-                            u_target_traj = u_target_traj.at[i].set(self.recovery_thrust.copy())
-                        x_target_traj = x_target_traj.at[self.horizon].set(x_target_traj[self.horizon - 1])
+                            for i in range(self.horizon):
+                                alpha_i = i / self.horizon
+                                angle_i = roll_target * alpha_i
+                                pos = x0[0:3]
+                                vel = jnp.zeros(3)
+                                q = self.quaternion_from_roll(angle_i)
+                                omega_magnitude = 2 * jnp.pi / self.flip_duration + 0.2 * roll_error
+                                omega = jnp.array([omega_magnitude, 0.0, 0.0])
+                                x_target_traj = x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+                                u_target_traj = u_target_traj.at[i].set(self.recovery_thrust.copy())
+                            x_target_traj = x_target_traj.at[self.horizon].set(x_target_traj[self.horizon - 1])
 
-                        if abs(roll_current) >= 2 * jnp.pi * 0.95:
-                            self.phase = 'recovery'
-                            self.recovery_start_time = current_time
+                            if abs(roll_current) >= 2 * jnp.pi * 0.95:
+                                self.phase = 'recovery'
+                                self.recovery_start_time = current_time
 
-                    elif self.phase == 'recovery':
-                        t_local = jnp.clip(current_time - self.recovery_start_time, 0.0, self.recovery_time)
-                        roll_desired = 2 * jnp.pi * (1 - t_local / self.recovery_time)
-                        q_current = self.ekf.x[6:10]
-                        roll_current, _, _ = self.euler_from_quaternion(q_current)
-                        roll_error = roll_desired - roll_current
-                        gain = 0.6 + 0.4 * (abs(roll_error) / jnp.pi)
-                        roll_target = roll_current + gain * roll_error
+                        elif self.phase == 'recovery':
+                            t_local = jnp.clip(current_time - self.recovery_start_time, 0.0, self.recovery_time)
+                            roll_desired = 2 * jnp.pi * (1 - t_local / self.recovery_time)
+                            q_current = self.ekf.x[6:10]
+                            roll_current, _, _ = self.euler_from_quaternion(q_current)
+                            roll_error = roll_desired - roll_current
+                            gain = 0.6 + 0.4 * (abs(roll_error) / jnp.pi)
+                            roll_target = roll_current + gain * roll_error
 
-                        for i in range(self.horizon):
-                            alpha_i = i / self.horizon
-                            angle_i = roll_current + alpha_i * (roll_target - roll_current)
-                            pos = x0[0:3]
-                            vel = jnp.zeros(3)
-                            q = self.quaternion_from_roll(angle_i)
-                            omega_mag = -2 * jnp.pi / self.recovery_time * (1 + 0.2 * abs(roll_error) / jnp.pi)
-                            omega = jnp.array([omega_mag, 0.0, 0.0])
-                            x_target_traj = x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
-                            u_target_traj = u_target_traj.at[i].set(self.recovery_thrust.copy())
-                        x_target_traj = x_target_traj.at[self.horizon].set(x_target_traj[self.horizon - 1])
+                            for i in range(self.horizon):
+                                alpha_i = i / self.horizon
+                                angle_i = roll_current + alpha_i * (roll_target - roll_current)
+                                pos = x0[0:3]
+                                vel = jnp.zeros(3)
+                                q = self.quaternion_from_roll(angle_i)
+                                omega_mag = -2 * jnp.pi / self.recovery_time * (1 + 0.2 * abs(roll_error) / jnp.pi)
+                                omega = jnp.array([omega_mag, 0.0, 0.0])
+                                x_target_traj = x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+                                u_target_traj = u_target_traj.at[i].set(self.recovery_thrust.copy())
+                            x_target_traj = x_target_traj.at[self.horizon].set(x_target_traj[self.horizon - 1])
 
-                        if abs(roll_current) <= self.roll_abs_tol:
-                            self.phase = 'land'
+                            if abs(roll_current) <= self.roll_abs_tol:
+                                self.phase = 'land'
 
-                    elif self.phase == 'land':
-                        self.to_client_f = False
-                        self.optimized_traj_f = False
-                        self.done = True
-                        self.send_msg_to_client("land")
+                        elif self.phase == 'land':
+                            self.to_client_f = False
+                            self.optimized_traj_f = False
+                            self.done = True
+                            self.send_msg_to_client("land")
 
-                    # Вызов MPC
-                    self.X_opt, self.u_optimal, self.i_final, self.cost_final = self.mpc.step(
-                        x0=x0,
-                        u_init=u_init,
-                        x_target_traj=x_target_traj,
-                        u_target_traj=u_target_traj,
-                    )
-                    self.send_optimized_traj()
-
+                        # self.log_ilqr(f"current_time={current_time}\nx0={x0}\nu_init={u_init}\n \
+                        #                 x_target_traj={x_target_traj}\n u_target_traj={u_target_traj}")
+                        # Вызов MPC
+                        self.X_opt, self.u_optimal, self.i_final, self.cost_final = self.mpc.step(
+                            x0=x0,
+                            u_init=u_init,
+                            x_target_traj=x_target_traj,
+                            u_target_traj=u_target_traj,
+                        )
+                        self.send_optimized_traj()
+                    
             except Exception as e:
-                self.get_logger().error(f"Ошибка при выполнении MPC: {str(e)}")
+                self.log_ilqr(f"Ошибка при выполнении MPC: {str(e)}")
                 # Выводим traceback ошибки для детальной диагностики
                 import traceback
-                self.get_logger().error(traceback.format_exc())
+                self.log_ilqr(f"{traceback.format_exc()}")
+            finally:
+                end_time = time.time()
+                elapsed = end_time - start_time
+                self.log_ilqr(f"[mpc_control_loop] END phase: {self.phase}, duration: {elapsed:.3f} s")
+                self.mpc_running = False
 
-            # Запуск в отдельном потоке
-            threading.Thread(target=run_mpc).start()
+    def mpc_control_loop(self):
+        #self.log_ilqr(f"test self.phase={self.phase}") 
+        #self.log_ilqr(">>> before starting run_mpc thread")
+        #self.run_mpc()
+        #self.run_mpc_thread()
+        # Запуск в отдельном потоке
+        threading.Thread(target=self.run_mpc_thread).start()
 
     def ekf_filter_node_t(self):
         self.get_logger().info("ekf_filter_node_t")
@@ -631,7 +812,7 @@ class DynamicModelNode(Node):
         self.motor_pub.publish(msg)
 
     def EKF(self):
-        self.get_logger().info("EKF")
+        #self.get_logger().info("EKF")
         """ Основная функция обновления фильтра Калмана. """
         vel_world = self.vehicleImu_velocity_w
         z = np.array([
@@ -694,8 +875,7 @@ class DynamicModelNode(Node):
         H[12, 12] = 1.0  # wz
         H[13, 2] = 1.0   # барометрический z
         return H
-
-
+ 
 class ILQROptimizer:
     def __init__(self, dynamics_func, cost_function_traj_flip, horizon, n, m, dt, logger):
         self.f = dynamics_func
@@ -705,36 +885,60 @@ class ILQROptimizer:
         self.m = m
         self.dt = dt
         self.logger = logger
+        self.datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.log_base = os.path.join("MY_iLQR_LOG", self.datetime)
+        self.last_log_time = time.time()  # инициализация
 
-    def simulate_trajectory(self, x0, U):
+    async def log_ilqr(self, data: str):
+        os.makedirs(self.log_base, exist_ok=True)
+        now = time.time()
+        elapsed_ms = (now - self.last_log_time) * 1000  # в миллисекундах
+        self.last_log_time = now
+        log_path = os.path.join(self.log_base, "ILQR_solve().txt")
+        
+        async with aiofiles.open(log_path, "a") as f:
+            await f.write(f"[+{elapsed_ms:.1f}ms] {data}\n")
+
+    # @jit
+    # def simulate_trajectory(self, x0, U):
+    #     X = [x0]
+    #     x = x0
+    #     for u in U:
+    #         x = self.f(x, u, self.dt)
+    #         X.append(x)
+    #     return jnp.stack(X)
+
+    @jit
+    def simulate_trajectory(self, x0, U):# распараллеленная
         X = [x0]
-        x = x0
-        for u in U:
-            x = self.f(x, u, self.dt)
-            X.append(x)
+        # Используем vmap для параллельного вычисления следующего состояния
+        f_batch = vmap(self.f, in_axes=(None, 0, None))  # Здесь U — это батч управляющих сигналов
+        U = jnp.array(U)
+        X_new = f_batch(x0, U, self.dt)
+        X.extend(X_new)
         return jnp.stack(X)
+
 
     def linearize_dynamics(self, x, u):
         A = jacobian(self.f, argnums=0)(x, u, self.dt)
         B = jacobian(self.f, argnums=1)(x, u, self.dt)
         return A, B
 
+    @jit
     def quadratize_cost(self, x, u, x_target, u_target, Q, R):
         def scalar_cost(x_, u_):
             dx = x_ - x_target
             du = u_ - u_target
             return dx @ Q @ dx + du @ R @ du
 
-        lx = grad(lambda x_: scalar_cost(x_, u))(x)
-        lu = grad(lambda u_: scalar_cost(x, u_))(u)
-        lxx = hessian(lambda x_: scalar_cost(x_, u))(x)
-        luu = hessian(lambda u_: scalar_cost(x, u_))(u)
-        
-        #lux = jacobian(lambda u_: grad(lambda x_: scalar_cost(x_, u_))(x))(u)
-        lux = jacobian(lambda x_: grad(lambda u_: scalar_cost(x_, u_))(u))(x)
+        lx = grad(scalar_cost, argnums=0)(x, u)
+        lu = grad(scalar_cost, argnums=1)(x, u)
+        lxx = hessian(scalar_cost, argnums=0)(x, u)
+        luu = hessian(scalar_cost, argnums=1)(x, u)
+
+        lux = jacobian(grad(scalar_cost, argnums=1), argnums=0)(x, u)
         return lx, lu, lxx, luu, lux
   
-
     def log_matrix(self, logger, name, matrix):
         """Универсальная функция логирования матрицы в ROS 2."""
         matrix_np = np.array(matrix)  # если это JAX, то .to_py() тоже может подойти
@@ -746,7 +950,6 @@ class ILQROptimizer:
         Vxx = Qf
         K_list = []
         k_list = []
-
         for k in reversed(range(self.horizon)):
             xk = X[k]
             uk = U[k]
@@ -779,7 +982,6 @@ class ILQROptimizer:
 
             K_list.insert(0, K)
             k_list.insert(0, kff)
-
         return K_list, k_list
 
     def forward_pass(self, X, U, k_list, K_list, alpha):
@@ -795,23 +997,33 @@ class ILQROptimizer:
             X_new.append(x)
         return jnp.stack(X_new), jnp.stack(U_new)
 
-    def solve(self, x0, u_init, x_target_traj, u_target_traj, Q, R, Qf,
+    async def solve(self, x0, u_init, x_target_traj, u_target_traj, Q, R, Qf,
               max_iters=100, tol=1e-3, alpha=1.0):
+        await self.log_ilqr("************start solve*************")
         X = self.simulate_trajectory(x0, u_init)
-        print(f" X={X}   x_target_traj={x_target_traj}")
+        #self.log_ilqr(f"X=self.simulate_trajectory(x0, u_init): X={X}") 
         U = u_init
-
+        await self.log_ilqr("for i in range(max_iters):")
         for i in range(max_iters):
+            await self.log_ilqr(f"================= i={i}======================")
+            await self.log_ilqr("cost_function_traj_flip start")
             cost_prev = self.cost_function_traj_flip( X, U, x_target_traj, u_target_traj, Q, R, Qf)
+            await self.log_ilqr("cost_function_traj_flip end")
+            await self.log_ilqr("backward_pass start")
             K_list, k_list = self.backward_pass(X, U, x_target_traj, u_target_traj, Q, R, Qf)
+            await self.log_ilqr("backward_pass end")
+            await self.log_ilqr("forward_pass start")
             X_new, U_new = self.forward_pass(X, U, k_list, K_list, alpha)
-            print(f"X_new={X_new}")
+            await self.log_ilqr("forward_pass end")
+            await self.log_ilqr("cost_function_traj_flip start")
             cost_new = self.cost_function_traj_flip(X_new, U_new, x_target_traj, u_target_traj, Q, R, Qf)
+            await self.log_ilqr("cost_function_traj_flip end")
+            await self.log_ilqr(f"================= i={i}======================")
 
             if jnp.abs(cost_prev - cost_new) < tol:
                 break
             X, U = X_new, U_new
-
+        await self.log_ilqr("************end solve*************")
         return X, U, i, cost_new
 
 
@@ -912,8 +1124,6 @@ class ModelPredictiveController:
             self.get_logger().error(traceback.format_exc())
             raise
 
-   
- 
 def main(args=None):
     rclpy.init(args=args)
     node = DynamicModelNode()

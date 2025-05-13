@@ -22,6 +22,8 @@ Makefile
 cmake_install.cmake
 CTestTestfile.cmake
 
+/MY_LOG/
+src/build
 # ROS 2 dependencies (if using venv)
 /lib/python*/dist-packages/
 
