@@ -25,7 +25,7 @@ from rclpy.qos import QoSProfile
 from nav_msgs.msg import Odometry  # inner ROS2 EKF
 
 import threading
-from jax import jit, grad, jacobian, hessian, vmap
+from jax import jit, grad, jacobian, hessian, vmap, lax
 import jax.numpy as jnp 
 
 import asyncio
@@ -105,30 +105,32 @@ def f(x, u, dt):
     arm = ARM_LEN
     kf = K_THRUST
     km = K_TORQUE
-    drag = DRAG  # коэффициент сопротивления
+    drag = DRAG
     g = jnp.array([0.0, 0.0, 9.81])
     max_speed = MAX_SPEED
 
     pos = x[0:3]
     vel = x[3:6]
-    quat = x[6:10]  # кватернионы
+    quat = x[6:10]
     omega = x[10:13]
 
-    # нормализация кватерниона
+    # нормализация кватерниона через jax.lax.cond
     quat_norm = jnp.linalg.norm(quat)
-    if quat_norm < 1e-8:
-        quat = jnp.array([1.0, 0.0, 0.0, 0.0])  # если нулевая норма, ставим единичный кватернион
-    else:
-        quat = quat / quat_norm
+    quat = lax.cond(
+        quat_norm < 1e-8,
+        lambda _: jnp.array([1.0, 0.0, 0.0, 0.0]),
+        lambda _: quat / quat_norm,
+        operand=None
+    )
 
-    R_bw = quat_to_rot_matrix(quat) # матрица поворота из кватерниона
+    R_bw = quat_to_rot_matrix(quat)
 
     rpm = jnp.clip(u, 0.0, max_speed)
     w_squared = rpm ** 2
     thrusts = kf * w_squared
 
     Fz_body = jnp.array([0.0, 0.0, jnp.sum(thrusts)])
-    F_world = R_bw @ Fz_body - m * g - drag * vel  # линейное сопротивление
+    F_world = R_bw @ Fz_body - m * g - drag * vel
     acc = F_world / m
 
     new_vel = vel + acc * dt
@@ -144,12 +146,12 @@ def f(x, u, dt):
     omega_dot = jnp.linalg.solve(I, tau - omega_cross)
     new_omega = omega + omega_dot * dt
 
-    omega_quat = jnp.concatenate([jnp.array([0.0]), new_omega])  # создаем кватернион из угловой скорости
-    dq = 0.5 * quat_multiply(quat, omega_quat)  # вычисляем изменение кватерниона
+    omega_quat = jnp.concatenate([jnp.array([0.0]), new_omega])
+    dq = 0.5 * quat_multiply(quat, omega_quat)
     new_quat = quat + dq * dt
-    new_quat /= jnp.linalg.norm(new_quat + 1e-8)  # нормализуем кватернион
+    new_quat /= jnp.linalg.norm(new_quat + 1e-8)  # безопасная нормализация
 
-    x_next = jnp.concatenate([new_pos, new_vel, new_quat, new_omega])  # собираем новое состояние
+    x_next = jnp.concatenate([new_pos, new_vel, new_quat, new_omega])
     return x_next
 
 class MyEKF(ExtendedKalmanFilter):
@@ -284,8 +286,8 @@ class ModelPredictiveControlNode(Node):
         self.pub_optimized_traj = self.create_publisher(OptimizedTraj, '/drone/optimized_traj', qos_profile)
 
         self.optimized_traj_f = False
-        self.X_opt = np.zeros((self.horizon + 1, self.n))  # (N+1) x n
-        self.u_optimal = np.zeros((self.horizon, self.m))  # N x m
+        self.X_opt = np.zeros((horizon + 1, n))  # (N+1) x n
+        self.u_optimal = np.zeros((horizon, m))  # N x m
         self.i_final = 0
         self.cost_final = 0.0
         self.done = False 
@@ -294,9 +296,9 @@ class ModelPredictiveControlNode(Node):
         self.mpc_lock = threading.Lock()
 
         self.x0 = self.ekf.x.copy()  # [13]
-        self.u_init = jnp.tile(self.actuator_motors, (self.horizon, 1))  # [horizon, 4]
-        self.x_target_traj = jnp.zeros((self.horizon + 1, 13))
-        self.u_target_traj = jnp.tile(self.actuator_motors, (self.horizon, 1))  # [horizon, 4]
+        self.u_init = jnp.tile(self.actuator_motors, (horizon, 1))  # [horizon, 4]
+        self.x_target_traj = jnp.zeros((horizon + 1, 13))
+        self.u_target_traj = jnp.tile(self.actuator_motors, (horizon, 1))  # [horizon, 4]
         self.current_time = self.get_clock().now().nanoseconds * 1e-9
                 
     def actuator_outputs_callback(self, msg: ActuatorOutputs):
@@ -402,14 +404,14 @@ class ModelPredictiveControlNode(Node):
             f.write(data + "\n")
       
     def takeoff_targets(self):
-        for i in range(self.horizon):
+        for i in range(horizon):
             pos = self.x0[0:3].copy().at[2].set(self.takeoff_altitude)
             vel = jnp.zeros(3)
             q = jnp.array([0.0, 0.0, 0.0, 1.0])
             omega = jnp.zeros(3)
             self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
             self.u_target_traj = self.u_target_traj.at[i].set(self.motor_inputs.copy())
-        self.x_target_traj = self.x_target_traj.at[self.horizon].set(self.x_target_traj[self.horizon - 1])
+        self.x_target_traj = self.x_target_traj.at[horizon].set(self.x_target_traj[horizon - 1])
         
     def flip_targets(self ):
         t_local = jnp.clip(self.current_time - self.flip_started_time, 0.0, self.flip_duration)
@@ -426,8 +428,8 @@ class ModelPredictiveControlNode(Node):
         gain_adaptive = gain_base + 0.3 * jnp.tanh(roll_error)
         roll_target = self.roll_current + gain_adaptive * roll_error
 
-        for i in range(self.horizon):
-            alpha_i = i / self.horizon
+        for i in range(horizon):
+            alpha_i = i / horizon
             angle_i = roll_target * alpha_i
             
             pos = self.x0[0:3]
@@ -443,7 +445,7 @@ class ModelPredictiveControlNode(Node):
             self.u_target_traj = self.u_target_traj.at[i].set(self.recovery_thrust.copy())
 
         # Оставляем последний элемент траектории неизменным
-        self.x_target_traj = self.x_target_traj.at[self.horizon].set(self.x_target_traj[self.horizon - 1])
+        self.x_target_traj = self.x_target_traj.at[horizon].set(self.x_target_traj[horizon - 1])
         
     def recovery_targets(self):
         t_local = jnp.clip(self.current_time - self.recovery_start_time, 0.0, self.recovery_time)
@@ -459,8 +461,8 @@ class ModelPredictiveControlNode(Node):
         gain = 0.6 + 0.4 * (abs(roll_error) / jnp.pi)
         roll_target = self.roll_current + gain * roll_error
 
-        for i in range(self.horizon):
-            alpha_i = i / self.horizon
+        for i in range(horizon):
+            alpha_i = i / horizon
             angle_i = self.roll_current + alpha_i * (roll_target - self.roll_current)
             
             pos = self.x0[0:3]
@@ -476,7 +478,7 @@ class ModelPredictiveControlNode(Node):
             self.u_target_traj = self.u_target_traj.at[i].set(self.recovery_thrust.copy())
 
         # Оставляем последний элемент траектории неизменным
-        self.x_target_traj = self.x_target_traj.at[self.horizon].set(self.x_target_traj[self.horizon - 1])
+        self.x_target_traj = self.x_target_traj.at[horizon].set(self.x_target_traj[horizon - 1])
         
     def land_targets(self ):
         return
@@ -802,13 +804,7 @@ class ModelPredictiveControlNode(Node):
         return H
  
 class ILQROptimizer:
-    def __init__(self, dynamics_func, cost_function_traj_flip, horizon, n, m, dt, logger):
-        self.f = dynamics_func
-        self.cost_function_traj_flip = cost_function_traj_flip
-        self.horizon = horizon
-        self.n = n
-        self.m = m
-        self.dt = dt
+    def __init__(self, logger): 
         self.logger = logger
         self.datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.log_base = os.path.join("MY_iLQR_LOG", self.datetime)

@@ -33,8 +33,8 @@ setup(
                 'offboard_control_example = px4_offboard.offboard_control_example:main',
                 'visualizer = px4_offboard.visualizer:main',
                 'processes = px4_offboard.processes:main',
-                'flip = px4_offboard.flip:main',
-                'dynamic_model_node = px4_offboard.dynamic_model_node:main'
+                'px4_interaction = px4_offboard.px4_interaction:main',
+                'dynamics_drone_control = px4_offboard.dynamics_drone_control:main'
                  
         ],
     },
