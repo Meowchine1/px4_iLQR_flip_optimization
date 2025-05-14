@@ -19,16 +19,14 @@ import csv
 import time
 from std_msgs.msg import String
 from datetime import datetime
-from jax import grad  
-import jax.numpy as jnp
-from jax import grad, jacobian, hessian
+   
 from quad_flip_msgs.msg import OptimizedTraj
 from rclpy.qos import QoSProfile
 from nav_msgs.msg import Odometry  # inner ROS2 EKF
 
 import threading
-from jax import jit
-
+from jax import jit, grad, jacobian, hessian, vmap
+import jax.numpy as jnp 
 
 import asyncio
 import aiofiles
@@ -46,7 +44,31 @@ MOTOR_TAU = 0.02
 MAX_SPEED = 2100.0
 DRAG = 0.1
 MAX_RATE = 25.0  # ограничение на угловую скорость (roll/pitch) рад/с
- 
+
+# ============ Гиперпараметры для ModelPredictiveController =========================================
+dt = 0.1
+horizon = 50  # Горизонт предсказания
+n = 13        # Размерность состояния квадрокоптера (позиция, скорость, ориентация, угловая скорость) 
+m = 4         # Размерность управления (4 мотора)
+# * Настройка стоимостей 
+Q = jnp.diag(jnp.array([
+        10.0, 10.0, 10.0,       # x, y, z — позиция важна
+        1.0, 1.0, 1.0,          # vx, vy, vz — скорость менее важна
+        0.0, 50.0, 50.0, 0.0,   # qw, qx, qy, qz — флип важен по qx, qy
+        5.0, 5.0, 1.0           # wx, wy, wz — особенно важно стабилизировать roll/pitch
+    ]))
+
+R = jnp.diag(jnp.array([
+        0.001, 0.001, 0.001, 0.001  # все моторы слабо штрафуются
+    ]))
+
+Qf = np.diag(jnp.array([
+        10.0, 10.0, 10.0,      # позиция — средне важно
+        0.1, 0.1, 0.1,         # скорость — не критично
+        0.0, 100.0, 100.0, 0.0, # ориентация — важны qx/qy (например, pitch flip)
+        10.0, 10.0, 1.0        # угловые скорости — важно, чтобы стабилизировался
+    ]))  
+
 # ===== MATRIX OPERTIONS =====
 # QUATERNION UTILS (SCIPY-based)
 @jit
@@ -75,7 +97,6 @@ def quat_to_rot_matrix(q):
         [    2 * (xy + wz), 1 - 2 * (xx + zz),     2 * (yz - wx)],
         [    2 * (xz - wy),     2 * (yz + wx), 1 - 2 * (xx + yy)]
     ])
-
 
 @jit
 def f(x, u, dt):
@@ -131,9 +152,6 @@ def f(x, u, dt):
     x_next = jnp.concatenate([new_pos, new_vel, new_quat, new_omega])  # собираем новое состояние
     return x_next
 
-
-
-
 class MyEKF(ExtendedKalmanFilter):
     def __init__(self, dim_x, dim_z): 
         super().__init__(dim_x, dim_z)
@@ -143,8 +161,7 @@ class MyEKF(ExtendedKalmanFilter):
     def predict_x(self, u=np.zeros(4)):# predict new state with dynamic physic model
         return f(x=self.x, u=u, dt=self.dt)# custom fx(x, u, dt) function
      
-
-class DynamicModelNode(Node):
+class ModelPredictiveControlNode(Node):
     def __init__(self):
         super().__init__('dynamic_model_node')   
         qos_profile_for_odom = QoSProfile(depth=10)  # стандартный профиль
@@ -154,11 +171,12 @@ class DynamicModelNode(Node):
             history=HistoryPolicy.KEEP_LAST,
             depth=10
         )
+        
         self.datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.log_base = os.path.join("MY_LOG", self.datetime)
-
         self.ilqr_log_base = os.path.join("MY_iLQR_LOG", self.datetime)
-        # == == == == == == == == == == == == == =PUBLISHERS= == == == == == == == == == == == == == == == == == == == == == ==
+
+        # == == == == == == == == == == == == == = PUBLISHERS = == == == == == == == == == == == == == == == == == == == == == ==
         # паблишеры для ekf_filter_node
         self.imu_pub = self.create_publisher(Imu, '/imu/data', qos_profile)
         self.mag_pub = self.create_publisher(MagneticField, '/imu/mag', qos_profile)
@@ -193,7 +211,6 @@ class DynamicModelNode(Node):
         self.motor_inputs = np.zeros(4, dtype=np.float32)  # в радианах
         self.vehicleAttitude_q = np.array([0.0, 0.0, 0.0, 1.0], dtype=np.float32) # quaternion from topic
         self.magnetometer_data = np.zeros(3, dtype=np.float32)
-        self.baro_attitude = 0.0
         self.baro_pressure = 0.0
         self.baro_altitude = 0.0
         self.mag_yaw = 0.0
@@ -205,21 +222,20 @@ class DynamicModelNode(Node):
         self.odom_callback_position = np.zeros(3, dtype=np.float32)
         self.odom_callback_orientation = np.zeros(4, dtype=np.float32)
 
-        # =================================== OTHER TOPIC DATA ========================================================== 
+        # =================================== OTHER TOPIC DATA ========================================================= 
         # [TOPIC NAME]_[PARAM NAME] OR [TOPIC NAME] IF PARAM = TOPIC NAME
         self.sensorCombined_angular_velocity = np.zeros(3, dtype=np.float32)
         self.angularVelocity_angular_acceleration = np.zeros(3, dtype=np.float32)
         self.baro_temperature = 0.0 # temperature in degrees Celsius
-
-        # ========================================= EKF =================================================================
+        # =================================== Гиперпараметры для EKF ===================================================
         # * вектор состояния 13 штук: позиция, скорость, ориентация (4), угловые скорости 
         # * вектор измерений 14 штук: позиция, линейная скорость, ориентация (4), барометрическая высота  
         self.ekf = MyEKF(dim_x=13, dim_z=14)
         self.ekf.x = np.zeros(13)
         self.ekf.x[6] = 1.0  # qw = 1 (единичный кватернион)
-        #Covariance matrix
+        # * Covariance matrix
         self.ekf.P *= 0.1
-        #Process noise matrix
+        # * Process noise matrix
         self.ekf.Q = np.diag([
             0.001, 0.001, 0.001,      # x, y, z (позиция)
             0.01, 0.01, 0.01,         # vx, vy, vz (скорость)
@@ -228,7 +244,7 @@ class DynamicModelNode(Node):
             1.25e-7,                  # момент (Nm)^2 s
             0.0005,                   # сила (N)^2 s
         ])
-        #Measurement noise matrix
+        # * Measurement noise matrix
         self.ekf.R = np.diag([
             0.1, 0.1, 0.1,            # позиция x, y, z (м²)
             0.0001, 0.0001, 0.0001,   # скорость vx, vy, vz (м²/с²)
@@ -237,38 +253,8 @@ class DynamicModelNode(Node):
             0.5                        # барометр (м²)
         ])
         #    ====    ====   Параметры ModelPredictiveController    ====     ====     ====     ====     ====     ====     ====
-        self.dt = 0.1 
-        self.horizon = 50  # Горизонт предсказания
-        self.n = 13  # Размерность состояния квадрокоптера (позиция, скорость, ориентация, угловая скорость)
-        self.m = 4  # Размерность управления (4 мотора)
-        
-        # Настройка стоимостей 
-        self.Q = jnp.diag(jnp.array([
-            10.0, 10.0, 10.0,       # x, y, z — позиция важна
-            1.0, 1.0, 1.0,          # vx, vy, vz — скорость менее важна
-            0.0, 50.0, 50.0, 0.0,   # qw, qx, qy, qz — флип важен по qx, qy
-            5.0, 5.0, 1.0           # wx, wy, wz — особенно важно стабилизировать roll/pitch
-        ]))
-        self.R = jnp.diag(jnp.array([
-            0.001, 0.001, 0.001, 0.001  # все моторы слабо штрафуются
-        ]))
-        self.Qf = np.diag(jnp.array([
-            10.0, 10.0, 10.0,      # позиция — средне важно
-            0.1, 0.1, 0.1,         # скорость — не критично
-            0.0, 100.0, 100.0, 0.0, # ориентация — важны qx/qy (например, pitch flip)
-            10.0, 10.0, 1.0        # угловые скорости — важно, чтобы стабилизировался
-        ]))  
- 
-        self.mpc = ModelPredictiveController(
-            dt=self.dt,
-            horizon=self.horizon,
-            n=self.n,
-            m=self.m,
-            Q=self.Q,
-            R=self.R,
-            Qf=self.Qf,
-            logger=self.get_logger()
-        )
+        self.optimizer = ILQROptimizer(
+            logger=self.get_logger()) 
 
         self.phase = 'init'
         self.takeoff_altitude = 5.0  # м
@@ -306,8 +292,13 @@ class DynamicModelNode(Node):
         self.to_client_f = False
 
         self.mpc_lock = threading.Lock()
-         
-     
+
+        self.x0 = self.ekf.x.copy()  # [13]
+        self.u_init = jnp.tile(self.actuator_motors, (self.horizon, 1))  # [horizon, 4]
+        self.x_target_traj = jnp.zeros((self.horizon + 1, 13))
+        self.u_target_traj = jnp.tile(self.actuator_motors, (self.horizon, 1))  # [horizon, 4]
+        self.current_time = self.get_clock().now().nanoseconds * 1e-9
+                
     def actuator_outputs_callback(self, msg: ActuatorOutputs):
         pwm_outputs = msg.output[:4]  # предполагаем, что 0-3 — это моторы
         # преобразование PWM в радианы в секунду (линейное приближение)
@@ -397,215 +388,152 @@ class DynamicModelNode(Node):
         server_msg.data = msg 
         self.server_pub.publish(server_msg)
     
+    def roll_from_quaternion(self, q):
+        """ Вычисление угла roll из кватерниона """
+        qw, qx, qy, qz = q
+        sinr_cosp = 2 * (qw * qx + qy * qz)
+        cosr_cosp = 1 - 2 * (qx**2 + qy**2)
+        return jnp.arctan2(sinr_cosp, cosr_cosp).item()
+
     def log_ilqr(self, data: str):
         os.makedirs(self.ilqr_log_base, exist_ok=True)
         log_path = os.path.join(self.ilqr_log_base, "ILQR_run_mpc().txt")
         with open(log_path, "a") as f:
             f.write(data + "\n")
+      
+    def takeoff_targets(self):
+        for i in range(self.horizon):
+            pos = self.x0[0:3].copy().at[2].set(self.takeoff_altitude)
+            vel = jnp.zeros(3)
+            q = jnp.array([0.0, 0.0, 0.0, 1.0])
+            omega = jnp.zeros(3)
+            self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+            self.u_target_traj = self.u_target_traj.at[i].set(self.motor_inputs.copy())
+        self.x_target_traj = self.x_target_traj.at[self.horizon].set(self.x_target_traj[self.horizon - 1])
+        
+    def flip_targets(self ):
+        t_local = jnp.clip(self.current_time - self.flip_started_time, 0.0, self.flip_duration)
+        roll_expected = 2 * jnp.pi * t_local / self.flip_duration
+        
+        # Получаем кватернион текущей ориентации
+        q_current = self.ekf.x[6:10]
+        
+        # Оценка roll из кватерниона
+        self.roll_current = self.roll_from_quaternion(q_current)
+        
+        roll_error = roll_expected - self.roll_current
+        gain_base = 0.8
+        gain_adaptive = gain_base + 0.3 * jnp.tanh(roll_error)
+        roll_target = self.roll_current + gain_adaptive * roll_error
 
-    def run_mpc(self):
-        self.log_ilqr(">>> run_mpc started")
-        start_time = time.time()
-        self.log_ilqr(f"============= phase: {self.phase}=============")#self.get_logger().info(f"[mpc_control_loop] START phase: {self.phase}")
-        try: 
-            if self.phase != 'init':
-                current_time = self.get_clock().now().nanoseconds * 1e-9
-                x0 = self.ekf.x.copy()  # [13]
-                u_init = jnp.tile(self.actuator_motors, (self.horizon, 1))  # [horizon, 4]
-                x_target_traj = jnp.zeros((self.horizon + 1, 13))
-                u_target_traj = jnp.tile(self.actuator_motors, (self.horizon, 1))  # [horizon, 4]
-                        
-                if self.phase == 'takeoff':
-                    self.log_ilqr("takeoff")
-                    for i in range(self.horizon):
-                        pos = x0[0:3].copy().at[2].set(self.takeoff_altitude)
-                        vel = jnp.zeros(3)
-                        q = jnp.array([0.0, 0.0, 0.0, 1.0])
-                        omega = jnp.zeros(3)
-                        x_target_traj = x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
-                        u_target_traj = u_target_traj.at[i].set(self.motor_inputs.copy())
-                    x_target_traj = x_target_traj.at[self.horizon].set(x_target_traj[self.horizon - 1])
+        for i in range(self.horizon):
+            alpha_i = i / self.horizon
+            angle_i = roll_target * alpha_i
+            
+            pos = self.x0[0:3]
+            vel = jnp.zeros(3)
+            
+            # Генерируем кватернион для целевой ориентации
+            q = self.quaternion_from_roll(angle_i)
+            
+            omega_magnitude = 2 * jnp.pi / self.flip_duration + 0.2 * roll_error
+            omega = jnp.array([omega_magnitude, 0.0, 0.0])
+            
+            self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+            self.u_target_traj = self.u_target_traj.at[i].set(self.recovery_thrust.copy())
 
-                    if abs(self.ekf.x[2] - self.takeoff_altitude) < self.takeoff_tol:
-                        self.phase = 'flip'
-                        self.flip_started_time = current_time
-                        self.send_msg_to_client("flip")
+        # Оставляем последний элемент траектории неизменным
+        self.x_target_traj = self.x_target_traj.at[self.horizon].set(self.x_target_traj[self.horizon - 1])
+        
+    def recovery_targets(self):
+        t_local = jnp.clip(self.current_time - self.recovery_start_time, 0.0, self.recovery_time)
+        roll_desired = 2 * jnp.pi * (1 - t_local / self.recovery_time)
+        
+        # Получаем кватернион текущей ориентации
+        q_current = self.ekf.x[6:10]
+        
+        # Оценка roll из кватерниона
+        self.roll_current = self.roll_from_quaternion(q_current)
+        
+        roll_error = roll_desired - self.roll_current
+        gain = 0.6 + 0.4 * (abs(roll_error) / jnp.pi)
+        roll_target = self.roll_current + gain * roll_error
 
-                elif self.phase == 'flip':
-                    self.log_ilqr("flip")
-                    t_local = jnp.clip(current_time - self.flip_started_time, 0.0, self.flip_duration)
-                    roll_expected = 2 * jnp.pi * t_local / self.flip_duration
-                    q_current = self.ekf.x[6:10]
-                    roll_current, _, _ = self.euler_from_quaternion(q_current)
-                    roll_error = roll_expected - roll_current
-                    gain_base = 0.8
-                    gain_adaptive = gain_base + 0.3 * jnp.tanh(roll_error)
-                    roll_target = roll_current + gain_adaptive * roll_error
+        for i in range(self.horizon):
+            alpha_i = i / self.horizon
+            angle_i = self.roll_current + alpha_i * (roll_target - self.roll_current)
+            
+            pos = self.x0[0:3]
+            vel = jnp.zeros(3)
+            
+            # Генерируем кватернион для целевой ориентации
+            q = self.quaternion_from_roll(angle_i)
+            
+            omega_mag = -2 * jnp.pi / self.recovery_time * (1 + 0.2 * abs(roll_error) / jnp.pi)
+            omega = jnp.array([omega_mag, 0.0, 0.0])
+            
+            self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+            self.u_target_traj = self.u_target_traj.at[i].set(self.recovery_thrust.copy())
 
-                    for i in range(self.horizon):
-                        alpha_i = i / self.horizon
-                        angle_i = roll_target * alpha_i
-                        pos = x0[0:3]
-                        vel = jnp.zeros(3)
-                        q = self.quaternion_from_roll(angle_i)
-                        omega_magnitude = 2 * jnp.pi / self.flip_duration + 0.2 * roll_error
-                        omega = jnp.array([omega_magnitude, 0.0, 0.0])
-                        x_target_traj = x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
-                        u_target_traj = u_target_traj.at[i].set(self.recovery_thrust.copy())
-                    x_target_traj = x_target_traj.at[self.horizon].set(x_target_traj[self.horizon - 1])
+        # Оставляем последний элемент траектории неизменным
+        self.x_target_traj = self.x_target_traj.at[self.horizon].set(self.x_target_traj[self.horizon - 1])
+        
+    def land_targets(self ):
+        return
 
-                    if abs(roll_current) >= 2 * jnp.pi * 0.95:
-                        self.phase = 'recovery'
-                        self.recovery_start_time = current_time
-
-                elif self.phase == 'recovery':
-                    t_local = jnp.clip(current_time - self.recovery_start_time, 0.0, self.recovery_time)
-                    roll_desired = 2 * jnp.pi * (1 - t_local / self.recovery_time)
-                    q_current = self.ekf.x[6:10]
-                    roll_current, _, _ = self.euler_from_quaternion(q_current)
-                    roll_error = roll_desired - roll_current
-                    gain = 0.6 + 0.4 * (abs(roll_error) / jnp.pi)
-                    roll_target = roll_current + gain * roll_error
-
-                    for i in range(self.horizon):
-                        alpha_i = i / self.horizon
-                        angle_i = roll_current + alpha_i * (roll_target - roll_current)
-                        pos = x0[0:3]
-                        vel = jnp.zeros(3)
-                        q = self.quaternion_from_roll(angle_i)
-                        omega_mag = -2 * jnp.pi / self.recovery_time * (1 + 0.2 * abs(roll_error) / jnp.pi)
-                        omega = jnp.array([omega_mag, 0.0, 0.0])
-                        x_target_traj = x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
-                        u_target_traj = u_target_traj.at[i].set(self.recovery_thrust.copy())
-                    x_target_traj = x_target_traj.at[self.horizon].set(x_target_traj[self.horizon - 1])
-
-                    if abs(roll_current) <= self.roll_abs_tol:
-                        self.phase = 'land'
-
-                elif self.phase == 'land':
-                    self.to_client_f = False
-                    self.optimized_traj_f = False
-                    self.done = True
-                    self.send_msg_to_client("land")
-
-                self.log_ilqr(f"current_time={current_time} x0={x0} u_init={u_init} \
-                                      x_target_traj={x_target_traj} u_target_traj={u_target_traj}")
-                # Вызов MPC
-                self.X_opt, self.u_optimal, self.i_final, self.cost_final = self.mpc.step(
-                    x0=x0,
-                    u_init=u_init,
-                    x_target_traj=x_target_traj,
-                    u_target_traj=u_target_traj,
-                )
-                self.send_optimized_traj()
-                
-        except Exception as e:
-            self.get_logger().error(f"Ошибка при выполнении MPC: {str(e)}")
-                # Выводим traceback ошибки для детальной диагностики
-            import traceback
-            self.get_logger().error(traceback.format_exc())
-        finally:
-            end_time = time.time()
-            elapsed = end_time - start_time
-            self.get_logger().info(f"[mpc_control_loop] END phase: {self.phase}, duration: {elapsed:.3f} s")
-            self.mpc_running = False
-
-    def run_mpc_thread(self):
-        #self.log_ilqr(">>> run_mpc started")
+    async def run_mpc_thread(self):
         with self.mpc_lock:
             start_time = time.time()
-            self.log_ilqr(f"============= phase: {self.phase}=============")#self.get_logger().info(f"[mpc_control_loop] START phase: {self.phase}")
+            self.log_ilqr(f"============= phase: {self.phase}=============")
             try: 
                 if self.phase != 'init':
-                    current_time = self.get_clock().now().nanoseconds * 1e-9
-                    x0 = self.ekf.x.copy()  # [13]
-                    u_init = jnp.tile(self.actuator_motors, (self.horizon, 1))  # [horizon, 4]
-                    x_target_traj = jnp.zeros((self.horizon + 1, 13))
-                    u_target_traj = jnp.tile(self.actuator_motors, (self.horizon, 1))  # [horizon, 4]
-                            
+                    self.current_time = self.get_clock().now().nanoseconds * 1e-9
                     if self.phase == 'takeoff':
-                        self.log_ilqr("takeoff")
-                        for i in range(self.horizon):
-                            pos = x0[0:3].copy().at[2].set(self.takeoff_altitude)
-                            vel = jnp.zeros(3)
-                            q = jnp.array([0.0, 0.0, 0.0, 1.0])
-                            omega = jnp.zeros(3)
-                            x_target_traj = x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
-                            u_target_traj = u_target_traj.at[i].set(self.motor_inputs.copy())
-                        x_target_traj = x_target_traj.at[self.horizon].set(x_target_traj[self.horizon - 1])
-
+                        self.takeoff_targets()
+                        self.log_ilqr(f"takeoff\n self.ekf.x[2]={self.ekf.x[2]} \
+                                       self.ekf.x[2] - self.takeoff_altitude={self.ekf.x[2] - self.takeoff_altitude}")
                         if abs(self.ekf.x[2] - self.takeoff_altitude) < self.takeoff_tol:
                             self.phase = 'flip'
-                            self.flip_started_time = current_time
+                            self.flip_started_time = self.current_time
                             self.send_msg_to_client("flip")
 
-                        elif self.phase == 'flip':
-                            self.log_ilqr("flip")
-                            t_local = jnp.clip(current_time - self.flip_started_time, 0.0, self.flip_duration)
-                            roll_expected = 2 * jnp.pi * t_local / self.flip_duration
-                            q_current = self.ekf.x[6:10]
-                            roll_current, _, _ = self.euler_from_quaternion(q_current)
-                            roll_error = roll_expected - roll_current
-                            gain_base = 0.8
-                            gain_adaptive = gain_base + 0.3 * jnp.tanh(roll_error)
-                            roll_target = roll_current + gain_adaptive * roll_error
+                    elif self.phase == 'flip': 
+                        self.flip_targets()
+                        self.log_ilqr(f"flip\nabs(roll_current)={abs(self.roll_current)}") 
 
-                            for i in range(self.horizon):
-                                alpha_i = i / self.horizon
-                                angle_i = roll_target * alpha_i
-                                pos = x0[0:3]
-                                vel = jnp.zeros(3)
-                                q = self.quaternion_from_roll(angle_i)
-                                omega_magnitude = 2 * jnp.pi / self.flip_duration + 0.2 * roll_error
-                                omega = jnp.array([omega_magnitude, 0.0, 0.0])
-                                x_target_traj = x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
-                                u_target_traj = u_target_traj.at[i].set(self.recovery_thrust.copy())
-                            x_target_traj = x_target_traj.at[self.horizon].set(x_target_traj[self.horizon - 1])
+                        if jnp.isclose(self.roll_current, 2 * jnp.pi, atol=0.1):# выражение устойчивее к шуму чем аналогичное с abs  
+                            self.phase = 'recovery'
+                            self.recovery_start_time = self.current_time
 
-                            if abs(roll_current) >= 2 * jnp.pi * 0.95:
-                                self.phase = 'recovery'
-                                self.recovery_start_time = current_time
+                    elif self.phase == 'recovery':
+                        self.recovery_targets()
+                        if abs(self.roll_current) <= self.roll_abs_tol:
+                            self.phase = 'land'
 
-                        elif self.phase == 'recovery':
-                            t_local = jnp.clip(current_time - self.recovery_start_time, 0.0, self.recovery_time)
-                            roll_desired = 2 * jnp.pi * (1 - t_local / self.recovery_time)
-                            q_current = self.ekf.x[6:10]
-                            roll_current, _, _ = self.euler_from_quaternion(q_current)
-                            roll_error = roll_desired - roll_current
-                            gain = 0.6 + 0.4 * (abs(roll_error) / jnp.pi)
-                            roll_target = roll_current + gain * roll_error
-
-                            for i in range(self.horizon):
-                                alpha_i = i / self.horizon
-                                angle_i = roll_current + alpha_i * (roll_target - roll_current)
-                                pos = x0[0:3]
-                                vel = jnp.zeros(3)
-                                q = self.quaternion_from_roll(angle_i)
-                                omega_mag = -2 * jnp.pi / self.recovery_time * (1 + 0.2 * abs(roll_error) / jnp.pi)
-                                omega = jnp.array([omega_mag, 0.0, 0.0])
-                                x_target_traj = x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
-                                u_target_traj = u_target_traj.at[i].set(self.recovery_thrust.copy())
-                            x_target_traj = x_target_traj.at[self.horizon].set(x_target_traj[self.horizon - 1])
-
-                            if abs(roll_current) <= self.roll_abs_tol:
-                                self.phase = 'land'
-
-                        elif self.phase == 'land':
+                    elif self.phase == 'land':
                             self.to_client_f = False
                             self.optimized_traj_f = False
                             self.done = True
                             self.send_msg_to_client("land")
 
-                        # self.log_ilqr(f"current_time={current_time}\nx0={x0}\nu_init={u_init}\n \
-                        #                 x_target_traj={x_target_traj}\n u_target_traj={u_target_traj}")
-                        # Вызов MPC
-                        self.X_opt, self.u_optimal, self.i_final, self.cost_final = self.mpc.step(
-                            x0=x0,
-                            u_init=u_init,
-                            x_target_traj=x_target_traj,
-                            u_target_traj=u_target_traj,
-                        )
-                        self.send_optimized_traj()
+                    """
+                    Вычисляет оптимальную траекторию состояний и управляющих воздействий
+                    от текущего состояния self.x0, используя iLQR.
+                    """ 
+                    # Используем ILQR для расчета оптимальной траектории
+                    self.X_opt, U_opt, self.i_final, self.cost_final = await self.optimizer.solve( 
+                        x0=self.x0,
+                        u_init=self.u_init,
+                        Q=Q,
+                        R=R,
+                        Qf=Qf,
+                        x_target_traj=self.x_target_traj,
+                        u_target_traj=self.u_target_traj
+                    ) 
+                    # MPC работает по принципу "перепланирования" на каждом шаге
+                    # Выбираем управляющее воздействие на текущем шаге
+                    self.u_optimal = U_opt[0]  # Выбираем первое управление из оптимизированной траектории
+                    self.send_optimized_traj()
                     
             except Exception as e:
                 self.log_ilqr(f"Ошибка при выполнении MPC: {str(e)}")
@@ -617,12 +545,9 @@ class DynamicModelNode(Node):
                 elapsed = end_time - start_time
                 self.log_ilqr(f"[mpc_control_loop] END phase: {self.phase}, duration: {elapsed:.3f} s")
                 self.mpc_running = False
-
+               
+             
     def mpc_control_loop(self):
-        #self.log_ilqr(f"test self.phase={self.phase}") 
-        #self.log_ilqr(">>> before starting run_mpc thread")
-        #self.run_mpc()
-        #self.run_mpc_thread()
         # Запуск в отдельном потоке
         threading.Thread(target=self.run_mpc_thread).start()
 
@@ -636,10 +561,10 @@ class DynamicModelNode(Node):
         baro_msg = FluidPressure()
 
         # Стамп времени для сообщений
-        current_time = self.get_clock().now().to_msg()
+        self.current_time = self.get_clock().now().to_msg()
 
         # ======== /imu/data ========
-        imu_msg.header.stamp = current_time
+        imu_msg.header.stamp = self.current_time
         imu_msg.header.frame_id = "base_link"
 
         # Ориентация
@@ -657,14 +582,14 @@ class DynamicModelNode(Node):
         self.imu_pub.publish(imu_msg)
 
         # ======== /imu/mag ========
-        mag_msg.header.stamp = current_time
+        mag_msg.header.stamp = self.current_time
         mag_msg.header.frame_id = "base_link"
         mag = to_float_array(self.magnetometer_data)
         mag_msg.magnetic_field = Vector3(x=mag[0], y=mag[1], z=mag[2])
         self.mag_pub.publish(mag_msg)
 
         # ======== /baro ========
-        baro_msg.header.stamp = current_time
+        baro_msg.header.stamp = self.current_time
         baro_msg.header.frame_id = "base_link"
         baro_msg.fluid_pressure = float(self.baro_pressure)
         self.baro_pub.publish(baro_msg)
@@ -750,7 +675,7 @@ class DynamicModelNode(Node):
         #self.get_logger().info("sensor_baro_callback")
         self.baro_temperature = msg.temperature
         self.baro_pressure = msg.pressure
-        self.baro_attitude = 44330.0 * (1.0 - (msg.pressure / SEA_LEVEL_PRESSURE) ** 0.1903)
+        self.baro_altitude = 44330.0 * (1.0 - (msg.pressure / SEA_LEVEL_PRESSURE) ** 0.1903)
 
     def get_yaw_from_mag(self):
         r = R.from_quat(self.vehicleAttitude_q)
@@ -899,234 +824,187 @@ class ILQROptimizer:
         async with aiofiles.open(log_path, "a") as f:
             await f.write(f"[+{elapsed_ms:.1f}ms] {data}\n")
 
-    # @jit
-    # def simulate_trajectory(self, x0, U):
-    #     X = [x0]
-    #     x = x0
-    #     for u in U:
-    #         x = self.f(x, u, self.dt)
-    #         X.append(x)
-    #     return jnp.stack(X)
-
-    @jit
-    def simulate_trajectory(self, x0, U):# распараллеленная
-        X = [x0]
-        # Используем vmap для параллельного вычисления следующего состояния
-        f_batch = vmap(self.f, in_axes=(None, 0, None))  # Здесь U — это батч управляющих сигналов
-        U = jnp.array(U)
-        X_new = f_batch(x0, U, self.dt)
-        X.extend(X_new)
-        return jnp.stack(X)
-
-
-    def linearize_dynamics(self, x, u):
-        A = jacobian(self.f, argnums=0)(x, u, self.dt)
-        B = jacobian(self.f, argnums=1)(x, u, self.dt)
-        return A, B
-
-    @jit
-    def quadratize_cost(self, x, u, x_target, u_target, Q, R):
-        def scalar_cost(x_, u_):
-            dx = x_ - x_target
-            du = u_ - u_target
-            return dx @ Q @ dx + du @ R @ du
-
-        lx = grad(scalar_cost, argnums=0)(x, u)
-        lu = grad(scalar_cost, argnums=1)(x, u)
-        lxx = hessian(scalar_cost, argnums=0)(x, u)
-        luu = hessian(scalar_cost, argnums=1)(x, u)
-
-        lux = jacobian(grad(scalar_cost, argnums=1), argnums=0)(x, u)
-        return lx, lu, lxx, luu, lux
-  
-    def log_matrix(self, logger, name, matrix):
-        """Универсальная функция логирования матрицы в ROS 2."""
-        matrix_np = np.array(matrix)  # если это JAX, то .to_py() тоже может подойти
-        logger.info(f"{name} shape: {matrix_np.shape}")
-        logger.info(f"{name} contents:\n{matrix_np}")
-
-    def backward_pass(self, X, U, x_target_traj, u_target_traj, Q, R, Qf):
-        Vx = grad(lambda x: jnp.dot((x - x_target_traj[-1]), Qf @ (x - x_target_traj[-1])))(X[-1])
-        Vxx = Qf
-        K_list = []
-        k_list = []
-        for k in reversed(range(self.horizon)):
-            xk = X[k]
-            uk = U[k]
-            xt = x_target_traj[k]
-            ut = u_target_traj[k]
-
-            A, B = self.linearize_dynamics(xk, uk)
-
-            # self.log_matrix(self.logger, "Matrix A", A)
-            # self.log_matrix(self.logger, "Matrix B", B)
-            # self.log_matrix(self.logger, "Matrix Vxx", Vxx)
-            lx, lu, lxx, luu, lux = self.quadratize_cost(xk, uk, xt, ut, Q, R)
-
-            # self.log_matrix(self.logger, "Matrix lux", lux)
-
-            Qx = lx + A.T @ Vx
-            Qu = lu + B.T @ Vx
-            Qxx = lxx + A.T @ Vxx @ A
-            Quu = luu + B.T @ Vxx @ B
-            Qux = lux + B.T @ Vxx @ A #Qux = lux.T + B.T @ Vxx @ A  # обе части (m, n)
-
-            Quu_reg = Quu + 1e-6 * jnp.eye(self.m)  # регуляризация
-            Quu_inv = jnp.linalg.inv(Quu_reg)
-
-            K = -Quu_inv @ Qux
-            kff = -Quu_inv @ Qu
-
-            Vx = Qx + K.T @ Quu @ kff + K.T @ Qu + Qux.T @ kff
-            Vxx = Qxx + K.T @ Quu @ K + K.T @ Qux + Qux.T @ K
-
-            K_list.insert(0, K)
-            k_list.insert(0, kff)
-        return K_list, k_list
-
-    def forward_pass(self, X, U, k_list, K_list, alpha):
-        x = X[0]
-        X_new = [x]
-        U_new = []
-        for k in range(self.horizon):
-            dx = x - X[k]
-            du = k_list[k] + K_list[k] @ dx
-            u_new = U[k] + alpha * du
-            U_new.append(u_new)
-            x = self.f(x, u_new, self.dt)
-            X_new.append(x)
-        return jnp.stack(X_new), jnp.stack(U_new)
-
-    async def solve(self, x0, u_init, x_target_traj, u_target_traj, Q, R, Qf,
+    async def solve(self,  x0,  u_init,  x_target_traj,  u_target_traj, Q, R, Qf,
               max_iters=100, tol=1e-3, alpha=1.0):
-        await self.log_ilqr("************start solve*************")
-        X = self.simulate_trajectory(x0, u_init)
-        #self.log_ilqr(f"X=self.simulate_trajectory(x0, u_init): X={X}") 
-        U = u_init
-        await self.log_ilqr("for i in range(max_iters):")
+        X =  simulate_trajectory(x0, u_init)
+        #self.log_ilqr(f"X=self.simulate_trajectory(self.x0, self.u_init): X={X}") 
+        U =  u_init
         for i in range(max_iters):
-            await self.log_ilqr(f"================= i={i}======================")
-            await self.log_ilqr("cost_function_traj_flip start")
-            cost_prev = self.cost_function_traj_flip( X, U, x_target_traj, u_target_traj, Q, R, Qf)
-            await self.log_ilqr("cost_function_traj_flip end")
-            await self.log_ilqr("backward_pass start")
-            K_list, k_list = self.backward_pass(X, U, x_target_traj, u_target_traj, Q, R, Qf)
-            await self.log_ilqr("backward_pass end")
-            await self.log_ilqr("forward_pass start")
-            X_new, U_new = self.forward_pass(X, U, k_list, K_list, alpha)
-            await self.log_ilqr("forward_pass end")
-            await self.log_ilqr("cost_function_traj_flip start")
-            cost_new = self.cost_function_traj_flip(X_new, U_new, x_target_traj, u_target_traj, Q, R, Qf)
-            await self.log_ilqr("cost_function_traj_flip end")
-            await self.log_ilqr(f"================= i={i}======================")
+            await self.log_ilqr(f"======= i={i}=======\ncost_function_traj_flip start")
+
+            cost_prev = cost_function_traj_flip(X, U,  x_target_traj,  u_target_traj, Q, R, Qf)
+            await self.log_ilqr("cost_function_traj_flip end\nbackward_pass start") 
+
+            K_list, k_list = backward_pass(X, U,  x_target_traj,  u_target_traj, Q, R, Qf)
+            await self.log_ilqr("backward_pass end\nforward_pass start") 
+
+            X_new, U_new = forward_pass(X, U, k_list, K_list, alpha)
+            await self.log_ilqr("forward_pass end\ncost_function_traj_flip start") 
+
+            cost_new = cost_function_traj_flip(X_new, U_new, x_target_traj, u_target_traj, Q, R, Qf)
+            await self.log_ilqr("cost_function_traj_flip end") 
 
             if jnp.abs(cost_prev - cost_new) < tol:
                 break
             X, U = X_new, U_new
         await self.log_ilqr("************end solve*************")
         return X, U, i, cost_new
+ 
+# @jit
+# def simulate_trajectory(self, self.x0, U):
+#     X = [self.x0]
+#     x = self.x0
+#     for u in U:
+#         x = self.f(x, u, self.dt)
+#         X.append(x)
+#     return jnp.stack(X)
+
+"""
+f: функция динамики: f(x, u, dt) → x_next
+fx_batch: функция для вычисления Якобианов A, B по заданному состоянию и управлению
+dt: шаг по времени
+horizon: длина горизонта предсказания
+Q, R, Qf: матрицы весов стоимости
+n: размерность состояния
+m: размерность управления
+""" 
 
 
-class ModelPredictiveController:
-    def __init__(self, dt, horizon, Q, R, Qf, n, m,  logger):
-        """
-        f: функция динамики: f(x, u, dt) → x_next
-        fx_batch: функция для вычисления Якобианов A, B по заданному состоянию и управлению
-        dt: шаг по времени
-        horizon: длина горизонта предсказания
-        Q, R, Qf: матрицы весов стоимости
-        n: размерность состояния
-        m: размерность управления
-        """
-        self.dt = dt
-        self.horizon = horizon
-        self.Q = Q
-        self.R = R
-        self.Qf = Qf
-        self.n = n
-        self.m = m
-        self.logger = logger
-        # Инициализация ILQR оптимизатора
-        self.optimizer = ILQROptimizer(
-            dynamics_func=f, 
-            cost_function_traj_flip=self.cost_function_traj_flip, 
-            horizon=horizon, 
-            n=n, 
-            m=m, 
-            dt=dt,
-            logger=logger)
-          
-    def cost_function_traj_flip(self, x_traj, u_traj, x_target_traj, u_target_traj, Q, R, Qf):
-        def compute_step_cost(x, u, x_target, u_target, is_terminal=False):
-            # Вычисляем ошибку по позиции
-            position_error = x[0:3] - x_target[0:3]
-            position_cost = jnp.dot(position_error, jnp.dot(Q[0:3, 0:3], position_error))  # Матрица для позиции
+@jit
+def simulate_trajectory(x0, U):# распараллеленная
+    X = [x0]
+    # Используем vmap для параллельного вычисления следующего состояния
+    f_batch = vmap(f, in_axes=(None, 0, None))  # Здесь U — это батч управляющих сигналов
+    U = jnp.array(U)
+    X_new = f_batch(x0, U, dt)
+    X.extend(X_new)
+    return jnp.stack(X)
 
-            # Вычисляем ошибку по ориентации (кватернионы)
-            q_current = x[6:10] / jnp.linalg.norm(x[6:10])  # Нормализация кватернионов
-            q_target = x_target[6:10] / jnp.linalg.norm(x_target[6:10])
-            dot_product = jnp.clip(jnp.dot(q_current, q_target), -1.0, 1.0)  # Ограничиваем скалярный продукт
-            orientation_error = 2.0 * jnp.arccos(jnp.abs(dot_product))  # Ошибка по ориентации
-            orientation_cost = orientation_error**2 * Q[6, 6]  # Штраф по элементам ориентации
+@jit
+def linearize_dynamics(x, u):
+    A = jacobian(f, argnums=0)(x, u, dt)
+    B = jacobian(f, argnums=1)(x, u, dt)
+    return A, B
 
-            # Вычисляем ошибку по управлению
-            control_error = u - u_target
-            control_cost = jnp.dot(control_error, jnp.dot(R, control_error))  # Диагональная матрица для управления
+@jit
+def quadratize_cost(x, u, x_target, u_target, Q, R):
+    def scalar_cost(x_, u_):
+        dx = x_ - x_target
+        du = u_ - u_target
+        return dx @ Q @ dx + du @ R @ du
 
-            # Если это последний шаг (терминальный), то добавляем терминальный штраф
-            if is_terminal:
-                terminal_position_error = position_error
-                terminal_orientation_error = orientation_error
-                terminal_cost = jnp.dot(terminal_position_error, jnp.dot(Qf[0:3, 0:3], terminal_position_error)) + \
-                                terminal_orientation_error**2 * Qf[6, 6]
-                return position_cost + orientation_cost + control_cost + terminal_cost
+    lx = grad(scalar_cost, argnums=0)(x, u)
+    lu = grad(scalar_cost, argnums=1)(x, u)
+    lxx = hessian(scalar_cost, argnums=0)(x, u)
+    luu = hessian(scalar_cost, argnums=1)(x, u)
+
+    lux = jacobian(grad(scalar_cost, argnums=1), argnums=0)(x, u)
+    return lx, lu, lxx, luu, lux
+  
+def log_matrix(logger, name, matrix):
+    """Универсальная функция логирования матрицы в ROS 2."""
+    matrix_np = np.array(matrix)  # если это JAX, то .to_py() тоже может подойти
+    logger.info(f"{name} shape: {matrix_np.shape}")
+    logger.info(f"{name} contents:\n{matrix_np}")
+
+@jit
+def backward_pass(X, U, x_target_traj, u_target_traj, Q, R, Qf):
+    Vx = grad(lambda x: jnp.dot((x - x_target_traj[-1]), Qf @ (x - x_target_traj[-1])))(X[-1])
+    Vxx = Qf
+    K_list = []
+    k_list = []
+    for k in reversed(range(horizon)):
+        xk = X[k]
+        uk = U[k]
+        xt = x_target_traj[k]
+        ut = u_target_traj[k]
+
+        A, B = linearize_dynamics(xk, uk)
+
+        # log_matrix(logger, "Matrix A", A)
+        # log_matrix(logger, "Matrix B", B)
+        # log_matrix(logger, "Matrix Vxx", Vxx)
+        lx, lu, lxx, luu, lux = quadratize_cost(xk, uk, xt, ut, Q, R)
+
+        # log_matrix(logger, "Matrix lux", lux)
+
+        Qx = lx + A.T @ Vx
+        Qu = lu + B.T @ Vx
+        Qxx = lxx + A.T @ Vxx @ A
+        Quu = luu + B.T @ Vxx @ B
+        Qux = lux + B.T @ Vxx @ A #Qux = lux.T + B.T @ Vxx @ A  # обе части (m, n)
+
+        Quu_reg = Quu + 1e-6 * jnp.eye(m)  # регуляризация
+        Quu_inv = jnp.linalg.inv(Quu_reg)
+
+        K = -Quu_inv @ Qux
+        kff = -Quu_inv @ Qu
+
+        Vx = Qx + K.T @ Quu @ kff + K.T @ Qu + Qux.T @ kff
+        Vxx = Qxx + K.T @ Quu @ K + K.T @ Qux + Qux.T @ K
+
+        K_list.insert(0, K)
+        k_list.insert(0, kff)
+    return K_list, k_list
+
+@jit
+def forward_pass(X, U, k_list, K_list, alpha):
+    x = X[0]
+    X_new = [x]
+    U_new = []
+    for k in range(horizon):
+        dx = x - X[k]
+        du = k_list[k] + K_list[k] @ dx
+        u_new = U[k] + alpha * du
+        U_new.append(u_new)
+        x = f(x, u_new, dt)
+        X_new.append(x)
+    return jnp.stack(X_new), jnp.stack(U_new)
+
+@jit
+def cost_function_traj_flip(x_traj, u_traj, x_target_traj, u_target_traj, Q, R, Qf):
+    def compute_step_cost(x, u, x_target, u_target, is_terminal=False):
+        # Вычисляем ошибку по позиции
+        position_error = x[0:3] - x_target[0:3]
+        position_cost = jnp.dot(position_error, jnp.dot(Q[0:3, 0:3], position_error))  # Матрица для позиции
+
+        # Вычисляем ошибку по ориентации (кватернионы)
+        q_current = x[6:10] / jnp.linalg.norm(x[6:10])  # Нормализация кватернионов
+        q_target = x_target[6:10] / jnp.linalg.norm(x_target[6:10])
+        dot_product = jnp.clip(jnp.dot(q_current, q_target), -1.0, 1.0)  # Ограничиваем скалярный продукт
+        orientation_error = 2.0 * jnp.arccos(jnp.abs(dot_product))  # Ошибка по ориентации
+        orientation_cost = orientation_error**2 * Q[6, 6]  # Штраф по элементам ориентации
+
+        # Вычисляем ошибку по управлению
+        control_error = u - u_target
+        control_cost = jnp.dot(control_error, jnp.dot(R, control_error))  # Диагональная матрица для управления
+
+        # Если это последний шаг (терминальный), то добавляем терминальный штраф
+        if is_terminal:
+            terminal_position_error = position_error
+            terminal_orientation_error = orientation_error
+            terminal_cost = jnp.dot(terminal_position_error, jnp.dot(Qf[0:3, 0:3], terminal_position_error)) + \
+                            terminal_orientation_error**2 * Qf[6, 6]
+            return position_cost + orientation_cost + control_cost + terminal_cost
             
-            return position_cost + orientation_cost + control_cost
+        return position_cost + orientation_cost + control_cost
 
-        # Суммируем стоимость по всем шагам траектории
-        n_steps = x_traj.shape[0]
-        step_costs = []
+    # Суммируем стоимость по всем шагам траектории
+    n_steps = x_traj.shape[0]
+    step_costs = []
 
-        for i in range(n_steps):
-            is_terminal = (i == n_steps - 1)  # Последний шаг — терминальный
-            step_cost = compute_step_cost(x_traj[i], u_traj[i], x_target_traj[i], u_target_traj[i], is_terminal)
-            step_costs.append(step_cost)
+    for i in range(n_steps):
+        is_terminal = (i == n_steps - 1)  # Последний шаг — терминальный
+        step_cost = compute_step_cost(x_traj[i], u_traj[i], x_target_traj[i], u_target_traj[i], is_terminal)
+        step_costs.append(step_cost)
         
-        total_cost = jnp.sum(jnp.array(step_costs))
-        return total_cost
-    
-    def step(self, x0, u_init, x_target_traj, u_target_traj):
-        try:
-            """
-            Вычисляет оптимальную траекторию состояний и управляющих воздействий
-            от текущего состояния x0, используя iLQR.
-            """ 
-            # Используем ILQR для расчета оптимальной траектории
-            X_opt, U_opt, i_final, cost_final = self.optimizer.solve( 
-                x0=x0,
-                u_init=u_init,
-                Q=self.Q,
-                R=self.R,
-                Qf=self.Qf,
-                x_target_traj=x_target_traj,
-                u_target_traj=u_target_traj
-            ) 
-            # MPC работает по принципу "перепланирования" на каждом шаге
-            # Выбираем управляющее воздействие на текущем шаге
-            u_optimal = U_opt[0]  # Выбираем первое управление из оптимизированной траектории
-
-            # Возвращаем оптимальные состояния, управляющие воздействия и информацию о стоимости
-            return X_opt, u_optimal, i_final, cost_final
-    
-        except Exception as e:
-            self.get_logger().error(f"Error in MPC step: {str(e)}")
-            import traceback
-            self.get_logger().error(traceback.format_exc())
-            raise
+    total_cost = jnp.sum(jnp.array(step_costs))
+    return total_cost
+ 
 
 def main(args=None):
     rclpy.init(args=args)
-    node = DynamicModelNode()
+    node = ModelPredictiveControlNode()
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()

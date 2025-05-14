@@ -66,15 +66,15 @@ def generate_launch_description():
         Node(
             package='px4_offboard',
             namespace='px4_offboard',
-            executable='flip',
-            name='flip', 
+            executable='px4_interaction',
+            name='px4_interaction', 
         ),
 
         Node(
             package='px4_offboard',
             namespace='px4_offboard',
-            executable='dynamic_model_node',
-            name='dynamic_model_node', 
+            executable='dynamics_drone_control',
+            name='dynamics_drone_control', 
         ),
         
         Node(
