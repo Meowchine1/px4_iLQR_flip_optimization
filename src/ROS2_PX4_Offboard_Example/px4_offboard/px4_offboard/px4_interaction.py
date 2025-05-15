@@ -107,6 +107,8 @@ class FlipControlNode(Node):
         self.received_cost_final = msg.cost_final
         self.received_done = msg.done
 
+        self.get_logger().info(f'OptimizedTraj: {msg}')
+
     def send_message_to_server(self, msg):#
         ros_msg = String()
         ros_msg.data = msg

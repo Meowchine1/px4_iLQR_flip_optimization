@@ -9,7 +9,7 @@ from px4_msgs.msg import (VehicleAttitude, VehicleImu, ActuatorOutputs, Actuator
                           VehicleAngularAccelerationSetpoint, VehicleMagnetometer, SensorBaro)
 import numpy as np
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
-from scipy.spatial.transform import Rotation as R 
+ 
 from filterpy.kalman import ExtendedKalmanFilter
 from datetime import datetime
 from sensor_msgs.msg import Imu, MagneticField, FluidPressure
@@ -27,9 +27,8 @@ from nav_msgs.msg import Odometry  # inner ROS2 EKF
 import threading
 from jax import jit, grad, jacobian, hessian, vmap, lax
 import jax.numpy as jnp 
-
-import asyncio
-import aiofiles
+from scipy.spatial.transform import Rotation as Rot 
+ 
 
 # ============ CONSTANTS ====================================================
 SEA_LEVEL_PRESSURE = 101325.0
@@ -365,7 +364,7 @@ class ModelPredictiveControlNode(Node):
             writer.writerow(row_values)
 
     def send_optimized_traj(self):
-        self.get_logger().info(f"send_optimized_traj")
+        self.get_logger().info(f"send_optimized_traj optimized_traj_f={self.optimized_traj_f}")
         # TODO Логирование выходных данных в csv файл
         # self.X_opt, self.u_optimal, self.i_final, self.cost_final
 
@@ -405,7 +404,7 @@ class ModelPredictiveControlNode(Node):
       
     def takeoff_targets(self):
         for i in range(horizon):
-            pos = self.x0[0:3].copy().at[2].set(self.takeoff_altitude)
+            pos = jnp.array(self.x0[0:3]).copy().at[2].set(self.takeoff_altitude)
             vel = jnp.zeros(3)
             q = jnp.array([0.0, 0.0, 0.0, 1.0])
             omega = jnp.zeros(3)
@@ -483,7 +482,7 @@ class ModelPredictiveControlNode(Node):
     def land_targets(self ):
         return
 
-    async def run_mpc_thread(self):
+    def run_mpc_thread(self):
         with self.mpc_lock:
             start_time = time.time()
             self.log_ilqr(f"============= phase: {self.phase}=============")
@@ -523,7 +522,7 @@ class ModelPredictiveControlNode(Node):
                     от текущего состояния self.x0, используя iLQR.
                     """ 
                     # Используем ILQR для расчета оптимальной траектории
-                    self.X_opt, U_opt, self.i_final, self.cost_final = await self.optimizer.solve( 
+                    X_opt, U_opt, i_final, cost_final = self.optimizer.solve( 
                         x0=self.x0,
                         u_init=self.u_init,
                         Q=Q,
@@ -531,10 +530,16 @@ class ModelPredictiveControlNode(Node):
                         Qf=Qf,
                         x_target_traj=self.x_target_traj,
                         u_target_traj=self.u_target_traj
-                    ) 
-                    # MPC работает по принципу "перепланирования" на каждом шаге
-                    # Выбираем управляющее воздействие на текущем шаге
-                    self.u_optimal = U_opt[0]  # Выбираем первое управление из оптимизированной траектории
+                    )
+
+                    self.X_opt = np.array(X_opt)          # Преобразование из jnp в np
+                    self.u_optimal = np.array(U_opt)      # Вся траектория управления
+                    self.i_final = i_final
+                    self.cost_final = float(cost_final)   # Обеспечиваем float, а не jnp.scalar
+
+                    # Например, в MPC: берём первое управляющее воздействие
+                    # self.u_optimal = np.array(U_opt[0])
+
                     self.send_optimized_traj()
                     
             except Exception as e:
@@ -680,7 +685,7 @@ class ModelPredictiveControlNode(Node):
         self.baro_altitude = 44330.0 * (1.0 - (msg.pressure / SEA_LEVEL_PRESSURE) ** 0.1903)
 
     def get_yaw_from_mag(self):
-        r = R.from_quat(self.vehicleAttitude_q)
+        r = Rot.from_quat(self.vehicleAttitude_q)
         mag_world = r.apply(self.magnetometer_data)
         mag_x = mag_world[0]
         mag_y = mag_world[1]
@@ -720,13 +725,13 @@ class ModelPredictiveControlNode(Node):
         
     def vehicle_angular_acceleration_setpoint_callback(self, msg: VehicleAngularAccelerationSetpoint):
         self.angular_acceleration = msg.xyz
-
+   
     def vehicle_imu_callback(self, msg: VehicleImu):
         delta_velocity = np.array(msg.delta_velocity, dtype=np.float32)  # м/с
         delta_velocity_dt = msg.delta_velocity_dt * 1e-6  # с
         # Проверяем наличие ориентации и валидного времени интеграции
         if delta_velocity_dt > 0.0:
-            rotation = R.from_quat(self.vehicleAttitude_q)
+            rotation = Rot.from_quat(self.vehicleAttitude_q)
             delta_velocity_world = rotation.apply(delta_velocity)
             gravity = np.array([0.0, 0.0, 9.80665], dtype=np.float32)
             delta_velocity_world += gravity * delta_velocity_dt
@@ -810,40 +815,40 @@ class ILQROptimizer:
         self.log_base = os.path.join("MY_iLQR_LOG", self.datetime)
         self.last_log_time = time.time()  # инициализация
 
-    async def log_ilqr(self, data: str):
+    def log_ilqr(self, data: str):
         os.makedirs(self.log_base, exist_ok=True)
         now = time.time()
         elapsed_ms = (now - self.last_log_time) * 1000  # в миллисекундах
         self.last_log_time = now
         log_path = os.path.join(self.log_base, "ILQR_solve().txt")
         
-        async with aiofiles.open(log_path, "a") as f:
-            await f.write(f"[+{elapsed_ms:.1f}ms] {data}\n")
+        with open(log_path, "a") as f:
+            f.write(f"[+{elapsed_ms:.1f}ms] {data}\n")
 
-    async def solve(self,  x0,  u_init,  x_target_traj,  u_target_traj, Q, R, Qf,
+    def solve(self,  x0,  u_init,  x_target_traj,  u_target_traj, Q, R, Qf,
               max_iters=100, tol=1e-3, alpha=1.0):
         X =  simulate_trajectory(x0, u_init)
         #self.log_ilqr(f"X=self.simulate_trajectory(self.x0, self.u_init): X={X}") 
         U =  u_init
         for i in range(max_iters):
-            await self.log_ilqr(f"======= i={i}=======\ncost_function_traj_flip start")
+            self.log_ilqr(f"======= i={i}=======\ncost_function_traj_flip start")
 
             cost_prev = cost_function_traj_flip(X, U,  x_target_traj,  u_target_traj, Q, R, Qf)
-            await self.log_ilqr("cost_function_traj_flip end\nbackward_pass start") 
+            self.log_ilqr("cost_function_traj_flip end\nbackward_pass start") 
 
             K_list, k_list = backward_pass(X, U,  x_target_traj,  u_target_traj, Q, R, Qf)
-            await self.log_ilqr("backward_pass end\nforward_pass start") 
+            self.log_ilqr("backward_pass end\nforward_pass start") 
 
             X_new, U_new = forward_pass(X, U, k_list, K_list, alpha)
-            await self.log_ilqr("forward_pass end\ncost_function_traj_flip start") 
+            self.log_ilqr("forward_pass end\ncost_function_traj_flip start") 
 
             cost_new = cost_function_traj_flip(X_new, U_new, x_target_traj, u_target_traj, Q, R, Qf)
-            await self.log_ilqr("cost_function_traj_flip end") 
+            self.log_ilqr("cost_function_traj_flip end") 
 
             if jnp.abs(cost_prev - cost_new) < tol:
                 break
             X, U = X_new, U_new
-        await self.log_ilqr("************end solve*************")
+        self.log_ilqr("************end solve*************")
         return X, U, i, cost_new
  
 # @jit
@@ -864,8 +869,6 @@ Q, R, Qf: матрицы весов стоимости
 n: размерность состояния
 m: размерность управления
 """ 
-
-
 @jit
 def simulate_trajectory(x0, U):# распараллеленная
     X = [x0]

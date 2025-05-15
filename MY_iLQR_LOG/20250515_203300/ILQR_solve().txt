@@ -1,0 +1,4 @@
+[+2918.4ms] ======= i=0=======
+cost_function_traj_flip start
+[+2816.2ms] cost_function_traj_flip end
+backward_pass start
