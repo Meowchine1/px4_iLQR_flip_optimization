@@ -183,7 +183,7 @@ class ModelPredictiveControlNode(Node):
         self.mag_pub = self.create_publisher(MagneticField, '/imu/mag', qos_profile)
         self.baro_pub = self.create_publisher(FluidPressure, '/baro', qos_profile)
         self.ekf_state_pub = self.create_publisher(Float32MultiArray, '/ekf/state', qos_profile)
-        self.server_pub = self.create_publisher(String, '/drone/server_msg', qos_profile)
+        self.server_pub = self.create_publisher(String, '/drone/server_msg', qos_profile) 
 
         # == == == == == == == == == == == == == =SUBSCRIBERS= == = == == == == == == == == == == == == == == == == == == == == == 
         self.create_subscription(SensorCombined, '/fmu/out/sensor_combined', self.sensor_combined_callback, qos_profile)
@@ -311,6 +311,11 @@ class ModelPredictiveControlNode(Node):
         self.actuator_motors = np.sqrt(np.clip(msg.control[:4], 0.0, None) / K_THRUST)
         #self.get_logger().info(f"self.actuator_motors {self.actuator_motors}")
 
+    def send_msg_to_client(self, msg):
+        server_msg = String()
+        server_msg.data = msg 
+        self.server_pub.publish(server_msg)
+
     def client_msg_callback(self, msg):
         """GET CLIENT MESSAGES"""
         command = msg.data.strip().lower()
@@ -320,7 +325,20 @@ class ModelPredictiveControlNode(Node):
             self.to_client_f = True
             self.optimized_traj_f = True 
         else:
-            self.get_logger().warn(f"Unknown command: {command}") 
+            self.get_logger().warn(f"Unknown command: {command}")
+
+    def send_optimized_traj(self):
+        if self.optimized_traj_f:
+            msg = OptimizedTraj()
+            msg.x_opt = np.asarray(self.X_opt).flatten().astype(np.float32).tolist()
+            msg.u_opt = np.asarray(self.u_optimal).flatten().astype(np.float32).tolist()
+            msg.i_final = int(self.i_final)
+            msg.cost_final = float(self.cost_final)
+            msg.done = self.done
+            self.pub_optimized_traj.publish(msg)
+            
+            # Логирование в CSV
+            self.log_optimized_traj()
 
     # =============================нет колбека========================================
     def odom_callback(self, msg: Odometry):
@@ -362,33 +380,11 @@ class ModelPredictiveControlNode(Node):
         with open(file_path, mode='a', newline='') as f:
             writer = csv.writer(f)
             writer.writerow(row_values)
-
-    def send_optimized_traj(self):
-        self.get_logger().info(f"send_optimized_traj optimized_traj_f={self.optimized_traj_f}")
-        # TODO Логирование выходных данных в csv файл
-        # self.X_opt, self.u_optimal, self.i_final, self.cost_final
-
-        if self.optimized_traj_f:
-            msg = OptimizedTraj()
-            msg.x_opt = np.asarray(self.X_opt).flatten().astype(np.float32).tolist()
-            msg.u_opt = np.asarray(self.u_optimal).flatten().astype(np.float32).tolist()
-            msg.i_final = int(self.i_final)
-            msg.cost_final = float(self.cost_final)
-            msg.done = self.done
-            self.pub_optimized_traj.publish(msg)
-            
-            # Логирование в CSV
-            self.log_optimized_traj()
-
+ 
     def quaternion_from_roll(self, roll_rad):
         r = R.from_euler('x', roll_rad)
         return r.as_quat()
-    
-    def send_msg_to_client(self, msg):
-        server_msg = String()
-        server_msg.data = msg 
-        self.server_pub.publish(server_msg)
-    
+        
     def roll_from_quaternion(self, q):
         """ Вычисление угла roll из кватерниона """
         qw, qx, qy, qz = q
@@ -490,13 +486,14 @@ class ModelPredictiveControlNode(Node):
                 if self.phase != 'init':
                     self.current_time = self.get_clock().now().nanoseconds * 1e-9
                     if self.phase == 'takeoff':
+                        self.send_msg_to_client("mpc_on")
                         self.takeoff_targets()
                         self.log_ilqr(f"takeoff\n self.ekf.x[2]={self.ekf.x[2]} \
                                        self.ekf.x[2] - self.takeoff_altitude={self.ekf.x[2] - self.takeoff_altitude}")
                         if abs(self.ekf.x[2] - self.takeoff_altitude) < self.takeoff_tol:
                             self.phase = 'flip'
                             self.flip_started_time = self.current_time
-                            self.send_msg_to_client("flip")
+                            #self.send_msg_to_client("flip")
 
                     elif self.phase == 'flip': 
                         self.flip_targets()
@@ -533,13 +530,10 @@ class ModelPredictiveControlNode(Node):
                     )
 
                     self.X_opt = np.array(X_opt)          # Преобразование из jnp в np
-                    self.u_optimal = np.array(U_opt)      # Вся траектория управления
+                    self.u_optimal = np.array(U_opt[0])      
                     self.i_final = i_final
                     self.cost_final = float(cost_final)   # Обеспечиваем float, а не jnp.scalar
-
-                    # Например, в MPC: берём первое управляющее воздействие
-                    # self.u_optimal = np.array(U_opt[0])
-
+ 
                     self.send_optimized_traj()
                     
             except Exception as e:
@@ -559,7 +553,7 @@ class ModelPredictiveControlNode(Node):
         threading.Thread(target=self.run_mpc_thread).start()
 
     def ekf_filter_node_t(self):
-        self.get_logger().info("ekf_filter_node_t")
+        #self.get_logger().info("ekf_filter_node_t")
         def to_float_array(arr):
             return [float(x) for x in arr]
 

@@ -5,11 +5,8 @@ from geometry_msgs.msg import Vector3, Twist, PoseStamped
 from scipy.spatial.transform import Rotation as R 
 from std_msgs.msg import Float32
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
-from px4_msgs.msg import (
-    VehicleAngularVelocity, VehicleAngularAccelerationSetpoint,  
-    SensorCombined, VehicleImu, VehicleOdometry, OffboardControlMode, TrajectorySetpoint, 
-    VehicleStatus, VehicleLocalPosition, 
-      VehicleAttitude,
+from px4_msgs.msg import (  OffboardControlMode, TrajectorySetpoint, 
+    VehicleStatus,
     VehicleRatesSetpoint, VehicleTorqueSetpoint, VehicleAttitudeSetpoint, VehicleCommand, ActuatorMotors
 )
 import numpy as np
@@ -36,6 +33,7 @@ class DroneState(Enum):
     TAKEOFF = 4
     FLIP = 6
     LANDING = 16
+    MPC_MANAGEMENT = 15 
 
 class FlipControlNode(Node):
     def __init__(self):
@@ -71,6 +69,7 @@ class FlipControlNode(Node):
          
         self.create_timer(0.1, self.update)
         self.create_timer(0.1, self.offboard_heartbeat)
+        self.create_timer(0.1, self.drone_managenment)
         self.create_timer(0.01, self.flip_thrust_max) 
         self.create_timer(0.001, self.flip_thrust_recovery) 
         self.create_timer(0.0001, self.flip_pitch_t)
@@ -100,14 +99,24 @@ class FlipControlNode(Node):
         self.takeoff_alt = 0.0
         self.mpc_takeoff = False 
  
+
+
+    def drone_managenment(self):
+         pass #TODO
+
     def optimized_traj_callback(self, msg: OptimizedTraj):
+        self.main_state == DroneState.MPC_MANAGEMENT
+
         self.received_x_opt = np.array(msg.x_opt, dtype=np.float32)
         self.received_u_opt = np.array(msg.u_opt, dtype=np.float32)
         self.received_i_final = msg.i_final
         self.received_cost_final = msg.cost_final
         self.received_done = msg.done
 
-        self.get_logger().info(f'OptimizedTraj: {msg}')
+        self.get_logger().info(f'px4 OptimizedTraj: {msg}')
+        # TODO send u
+        self.send_motor_commands()
+
 
     def send_message_to_server(self, msg):#
         ros_msg = String()
@@ -119,8 +128,11 @@ class FlipControlNode(Node):
         self.get_logger().info(f'server_msg_callback: {msg}')
         if msg =="land":
             self.main_state == DroneState.LANDING
-        elif msg =="flip":
-            self.main_state = DroneState.FLIP
+        elif msg =="mpc_on":
+            self.main_state = DroneState.MPC_MANAGEMENT
+        elif msg =="mpc_off":
+            self.main_state = DroneState.DISARMED
+        
 
     def vehicle_status_callback(self, msg): 
         """Обновляет состояние дрона."""
@@ -269,32 +281,17 @@ class FlipControlNode(Node):
         if self.main_state == DroneState.INIT:
             self.set_offboard_mode()
             self.arm()
-            self.main_state = DroneState.ARMING 
-         
-        elif self.main_state == DroneState.ARMING:
-            
-            #self.get_logger().warn(f"arm_state: {self.arming_state}")
-            #self.get_logger().info(f"nav_state: {self.nav_state}")
             if self.arming_state == VehicleStatus.ARMING_STATE_ARMED:
-                #self.get_logger().info('ARMING_STATE_ARMED')
-                #self.main_state = DroneState.TAKEOFF
-                self.send_message_to_server("takeoff")#
-            else:
-                self.set_offboard_mode()
-                self.arm()
-        # elif self.main_state == DroneState.TAKEOFF:
-             
-        #     if self.mpc_takeoff:
-        #         self.main_state = DroneState.FLIP
-   
-        # elif self.main_state == DroneState.FLIP: 
-        #     #optimal_motor_inputs = self.get_control_from_mpc()  # Вычисление оптимального управляющего воздействия
-        #     #self.send_motor_commands(optimal_motor_inputs)
+                self.main_state = DroneState.ARMED 
+         
+        elif self.main_state == DroneState.ARMED:
+            self.send_message_to_server("takeoff")#
+        
+        elif self.main_state == DroneState.MPC_MANAGEMENT:
+            self.send_motor_commands()
 
-            
-                
-        # elif self.main_state == DroneState.LANDING:
-        #     self.send_land_command()
+        elif self.main_state == DroneState.LANDING:
+            self.send_land_command()
 
 def main(args=None):
     rclpy.init(args=args)
