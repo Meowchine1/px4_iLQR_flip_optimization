@@ -35,6 +35,12 @@ class DroneState(Enum):
     LANDING = 16
     MPC_MANAGEMENT = 15 
 
+# dynamic drone control params
+# TODO Move it to FILE
+horizon = 50 # Горизонт предсказания
+n = 13  # Размерность состояния квадрокоптера (позиция, скорость, ориентация, угловая скорость)
+m = 4  # Размерность управления (4 мотора)
+
 class FlipControlNode(Node):
     def __init__(self):
         super().__init__('flip_control_node')
@@ -70,9 +76,9 @@ class FlipControlNode(Node):
         self.create_timer(0.1, self.update)
         self.create_timer(0.1, self.offboard_heartbeat)
         self.create_timer(0.1, self.drone_managenment)
-        self.create_timer(0.01, self.flip_thrust_max) 
-        self.create_timer(0.001, self.flip_thrust_recovery) 
-        self.create_timer(0.0001, self.flip_pitch_t)
+        #self.create_timer(0.01, self.flip_thrust_max) 
+        #self.create_timer(0.001, self.flip_thrust_recovery) 
+        #self.create_timer(0.0001, self.flip_pitch_t)
         # == == == =Timer flags == == == =
         self.flip_thrust_max_f = False
         self.flip_thrust_recovery_f = False
@@ -82,41 +88,32 @@ class FlipControlNode(Node):
         self.pub_to_mpc = self.create_publisher(String, '/drone/client_msg', qos_profile)#
         self.create_subscription(OptimizedTraj, '/drone/optimized_traj', self.optimized_traj_callback, qos_profile)
         self.create_subscription(String, '/drone/server_msg', self.server_msg_callback, qos_profile)
-         
-        # TODO FROOM FILE
-        self.horizon = 50  # Горизонт предсказания
-        self.n = 13  # Размерность состояния квадрокоптера (позиция, скорость, ориентация, угловая скорость)
-        self.m = 4  # Размерность управления (4 мотора)
-
-        self.received_x_opt = None
-        self.received_u_opt = None
-        self.received_i_final = None
-        self.received_cost_final = None
-        self.received_done = None
+          
+        self.received_x_opt = np.zeros((horizon + 1, n))  # (N+1) x n
+        self.received_u_opt = np.zeros((horizon, m))  # N x m
+        self.received_i_final = 0
+        self.received_cost_final = 0.0 
+        self.received_done =  False
 
         self.target_u, self.target_x = [], []
          
         self.takeoff_alt = 0.0
         self.mpc_takeoff = False 
+
+        self.drone_managenment_f = False
  
 
-
     def drone_managenment(self):
-         pass #TODO
-
+        if self.drone_managenment_f:
+            self.send_motor_commands()
+         
     def optimized_traj_callback(self, msg: OptimizedTraj):
-        self.main_state == DroneState.MPC_MANAGEMENT
-
         self.received_x_opt = np.array(msg.x_opt, dtype=np.float32)
         self.received_u_opt = np.array(msg.u_opt, dtype=np.float32)
         self.received_i_final = msg.i_final
         self.received_cost_final = msg.cost_final
-        self.received_done = msg.done
-
-        self.get_logger().info(f'px4 OptimizedTraj: {msg}')
-        # TODO send u
-        self.send_motor_commands()
-
+        self.received_done = msg.done 
+        #self.get_logger().info(f'px4 OptimizedTraj: {msg}') 
 
     def send_message_to_server(self, msg):#
         ros_msg = String()
@@ -125,13 +122,13 @@ class FlipControlNode(Node):
         #self.get_logger().info(f'Sent to MPC: {msg}')
 
     def server_msg_callback(self, msg):
-        self.get_logger().info(f'server_msg_callback: {msg}')
+        #self.get_logger().info(f'server_msg_callback: {msg}')
         if msg =="land":
             self.main_state == DroneState.LANDING
+            self.drone_managenment_f = False
         elif msg =="mpc_on":
             self.main_state = DroneState.MPC_MANAGEMENT
-        elif msg =="mpc_off":
-            self.main_state = DroneState.DISARMED
+            self.drone_managenment_f = True 
         
 
     def vehicle_status_callback(self, msg): 
@@ -287,8 +284,8 @@ class FlipControlNode(Node):
         elif self.main_state == DroneState.ARMED:
             self.send_message_to_server("takeoff")#
         
-        elif self.main_state == DroneState.MPC_MANAGEMENT:
-            self.send_motor_commands()
+        # elif self.main_state == DroneState.MPC_MANAGEMENT:
+             
 
         elif self.main_state == DroneState.LANDING:
             self.send_land_command()

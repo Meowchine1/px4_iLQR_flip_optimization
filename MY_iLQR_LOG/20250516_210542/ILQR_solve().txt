@@ -1,0 +1,1102 @@
+[+1.2ms] ======= i=0=======
+cost_function_traj_flip start
+[+2523.2ms] cost_function_traj_flip end
+backward_pass start
+[+65707.8ms] backward_pass end
+forward_pass start
+[+11364.4ms] forward_pass end
+cost_function_traj_flip start
+[+2.7ms] cost_function_traj_flip end
+[+51.8ms] ======= i=1=======
+cost_function_traj_flip start
+[+2.5ms] cost_function_traj_flip end
+backward_pass start
+[+8.4ms] backward_pass end
+forward_pass start
+[+2.3ms] forward_pass end
+cost_function_traj_flip start
+[+0.6ms] cost_function_traj_flip end
+[+8.5ms] ************end solve*************
+[+0.4ms] ======= i=0=======
+cost_function_traj_flip start
+[+5.6ms] cost_function_traj_flip end
+backward_pass start
+[+2.3ms] backward_pass end
+forward_pass start
+[+3.1ms] forward_pass end
+cost_function_traj_flip start
+[+1.5ms] cost_function_traj_flip end
+[+5.0ms] ======= i=1=======
+cost_function_traj_flip start
+[+2.0ms] cost_function_traj_flip end
+backward_pass start
+[+9.5ms] backward_pass end
+forward_pass start
+[+1.3ms] forward_pass end
+cost_function_traj_flip start
+[+1.1ms] cost_function_traj_flip end
+[+2.1ms] ************end solve*************
+[+0.7ms] ======= i=0=======
+cost_function_traj_flip start
+[+1.8ms] cost_function_traj_flip end
+backward_pass start
+[+2.5ms] backward_pass end
+forward_pass start
+[+1.9ms] forward_pass end
+cost_function_traj_flip start
+[+1.0ms] cost_function_traj_flip end
+[+5.2ms] ======= i=1=======
+cost_function_traj_flip start
+[+3.9ms] cost_function_traj_flip end
+backward_pass start
+[+15.8ms] backward_pass end
+forward_pass start
+[+1.5ms] forward_pass end
+cost_function_traj_flip start
+[+2.5ms] cost_function_traj_flip end
+[+1.4ms] ************end solve*************
+[+0.2ms] ======= i=0=======
+cost_function_traj_flip start
+[+1.0ms] cost_function_traj_flip end
+backward_pass start
+[+7.3ms] backward_pass end
+forward_pass start
+[+1.9ms] forward_pass end
+cost_function_traj_flip start
+[+1.1ms] cost_function_traj_flip end
+[+8.3ms] ======= i=1=======
+cost_function_traj_flip start
+[+5.4ms] cost_function_traj_flip end
+backward_pass start
+[+14.9ms] backward_pass end
+forward_pass start
+[+1.1ms] forward_pass end
+cost_function_traj_flip start
+[+1.6ms] cost_function_traj_flip end
+[+1.5ms] ************end solve*************
+[+0.6ms] ======= i=0=======
+cost_function_traj_flip start
+[+1.9ms] cost_function_traj_flip end
+backward_pass start
+[+1.8ms] backward_pass end
+forward_pass start
+[+1.4ms] forward_pass end
+cost_function_traj_flip start
+[+0.9ms] cost_function_traj_flip end
+[+8.4ms] ======= i=1=======
+cost_function_traj_flip start
+[+1.7ms] cost_function_traj_flip end
+backward_pass start
+[+6.0ms] backward_pass end
+forward_pass start
+[+1.4ms] forward_pass end
+cost_function_traj_flip start
+[+1.4ms] cost_function_traj_flip end
+[+1.9ms] ************end solve*************
+[+0.9ms] ======= i=0=======
+cost_function_traj_flip start
+[+1.5ms] cost_function_traj_flip end
+backward_pass start
+[+3.0ms] backward_pass end
+forward_pass start
+[+1.2ms] forward_pass end
+cost_function_traj_flip start
+[+1.4ms] cost_function_traj_flip end
+[+5.0ms] ======= i=1=======
+cost_function_traj_flip start
+[+0.4ms] cost_function_traj_flip end
+backward_pass start
+[+1.3ms] backward_pass end
+forward_pass start
+[+0.6ms] forward_pass end
+cost_function_traj_flip start
+[+0.4ms] cost_function_traj_flip end
+[+16.6ms] ************end solve*************
+[+0.1ms] ======= i=0=======
+cost_function_traj_flip start
+[+0.4ms] cost_function_traj_flip end
+backward_pass start
+[+2.7ms] backward_pass end
+forward_pass start
+[+0.7ms] forward_pass end
+cost_function_traj_flip start
+[+0.4ms] cost_function_traj_flip end
+[+7.3ms] ======= i=1=======
+cost_function_traj_flip start
+[+5.9ms] cost_function_traj_flip end
+backward_pass start
+[+17.7ms] backward_pass end
+forward_pass start
+[+2.9ms] forward_pass end
+cost_function_traj_flip start
+[+2.0ms] cost_function_traj_flip end
+[+2.1ms] ************end solve*************
+[+0.6ms] ======= i=0=======
+cost_function_traj_flip start
+[+2.0ms] cost_function_traj_flip end
+backward_pass start
+[+2.0ms] backward_pass end
+forward_pass start
+[+1.3ms] forward_pass end
+cost_function_traj_flip start
+[+1.4ms] cost_function_traj_flip end
+[+11.8ms] ======= i=1=======
+cost_function_traj_flip start
+[+2.7ms] cost_function_traj_flip end
+backward_pass start
+[+7.2ms] backward_pass end
+forward_pass start
+[+10.9ms] forward_pass end
+cost_function_traj_flip start
+[+1.7ms] cost_function_traj_flip end
+[+1.0ms] ************end solve*************
+[+0.6ms] ======= i=0=======
+cost_function_traj_flip start
+[+1.7ms] cost_function_traj_flip end
+backward_pass start
+[+2.7ms] backward_pass end
+forward_pass start
+[+1.5ms] forward_pass end
+cost_function_traj_flip start
+[+1.3ms] cost_function_traj_flip end
+[+8.5ms] ======= i=1=======
+cost_function_traj_flip start
+[+1.1ms] cost_function_traj_flip end
+backward_pass start
+[+5.8ms] backward_pass end
+forward_pass start
+[+1.6ms] forward_pass end
+cost_function_traj_flip start
+[+1.2ms] cost_function_traj_flip end
+[+1.3ms] ************end solve*************
+[+1.0ms] ======= i=0=======
+cost_function_traj_flip start
+[+0.9ms] cost_function_traj_flip end
+backward_pass start
+[+3.6ms] backward_pass end
+forward_pass start
+[+1.4ms] forward_pass end
+cost_function_traj_flip start
+[+1.5ms] cost_function_traj_flip end
+[+8.7ms] ======= i=1=======
+cost_function_traj_flip start
+[+0.6ms] cost_function_traj_flip end
+backward_pass start
+[+8.5ms] backward_pass end
+forward_pass start
+[+3.7ms] forward_pass end
+cost_function_traj_flip start
+[+1.4ms] cost_function_traj_flip end
+[+2.4ms] ************end solve*************
+[+0.7ms] ======= i=0=======
+cost_function_traj_flip start
+[+1.3ms] cost_function_traj_flip end
+backward_pass start
+[+2.3ms] backward_pass end
+forward_pass start
+[+13.2ms] forward_pass end
+cost_function_traj_flip start
+[+2.3ms] cost_function_traj_flip end
+[+3.6ms] ======= i=1=======
+cost_function_traj_flip start
+[+6.2ms] cost_function_traj_flip end
+backward_pass start
+[+6.1ms] backward_pass end
+forward_pass start
+[+10.7ms] forward_pass end
+cost_function_traj_flip start
+[+1.7ms] cost_function_traj_flip end
+[+1.8ms] ************end solve*************
+[+0.4ms] ======= i=0=======
+cost_function_traj_flip start
+[+1.5ms] cost_function_traj_flip end
+backward_pass start
+[+8.3ms] backward_pass end
+forward_pass start
+[+3.0ms] forward_pass end
+cost_function_traj_flip start
+[+1.6ms] cost_function_traj_flip end
+[+13.0ms] ======= i=1=======
+cost_function_traj_flip start
+[+1.4ms] cost_function_traj_flip end
+backward_pass start
+[+9.2ms] backward_pass end
+forward_pass start
+[+2.3ms] forward_pass end
+cost_function_traj_flip start
+[+2.2ms] cost_function_traj_flip end
+[+1.8ms] ************end solve*************
+[+0.4ms] ======= i=0=======
+cost_function_traj_flip start
+[+2.9ms] cost_function_traj_flip end
+backward_pass start
+[+1.6ms] backward_pass end
+forward_pass start
+[+1.4ms] forward_pass end
+cost_function_traj_flip start
+[+0.9ms] cost_function_traj_flip end
+[+4.7ms] ======= i=1=======
+cost_function_traj_flip start
+[+0.8ms] cost_function_traj_flip end
+backward_pass start
+[+19.0ms] backward_pass end
+forward_pass start
+[+1.4ms] forward_pass end
+cost_function_traj_flip start
+[+0.8ms] cost_function_traj_flip end
+[+1.2ms] ************end solve*************
+[+0.5ms] ======= i=0=======
+cost_function_traj_flip start
+[+5.6ms] cost_function_traj_flip end
+backward_pass start
+[+2.6ms] backward_pass end
+forward_pass start
+[+1.4ms] forward_pass end
+cost_function_traj_flip start
+[+1.1ms] cost_function_traj_flip end
+[+2.6ms] ======= i=1=======
+cost_function_traj_flip start
+[+1.7ms] cost_function_traj_flip end
+backward_pass start
+[+13.5ms] backward_pass end
+forward_pass start
+[+2.1ms] forward_pass end
+cost_function_traj_flip start
+[+1.1ms] cost_function_traj_flip end
+[+1.6ms] ************end solve*************
+[+1.0ms] ======= i=0=======
+cost_function_traj_flip start
+[+1.6ms] cost_function_traj_flip end
+backward_pass start
+[+2.6ms] backward_pass end
+forward_pass start
+[+1.2ms] forward_pass end
+cost_function_traj_flip start
+[+0.4ms] cost_function_traj_flip end
+[+7.5ms] ======= i=1=======
+cost_function_traj_flip start
+[+3.7ms] cost_function_traj_flip end
+backward_pass start
+[+7.0ms] backward_pass end
+forward_pass start
+[+2.8ms] forward_pass end
+cost_function_traj_flip start
+[+2.0ms] cost_function_traj_flip end
+[+8.3ms] ************end solve*************
+[+0.8ms] ======= i=0=======
+cost_function_traj_flip start
+[+1.3ms] cost_function_traj_flip end
+backward_pass start
+[+4.9ms] backward_pass end
+forward_pass start
+[+8.0ms] forward_pass end
+cost_function_traj_flip start
+[+1.0ms] cost_function_traj_flip end
+[+1.4ms] ======= i=1=======
+cost_function_traj_flip start
+[+4.0ms] cost_function_traj_flip end
+backward_pass start
+[+2.1ms] backward_pass end
+forward_pass start
+[+0.5ms] forward_pass end
+cost_function_traj_flip start
+[+0.5ms] cost_function_traj_flip end
+[+12.8ms] ************end solve*************
+[+0.6ms] ======= i=0=======
+cost_function_traj_flip start
+[+1.7ms] cost_function_traj_flip end
+backward_pass start
+[+2.3ms] backward_pass end
+forward_pass start
+[+1.3ms] forward_pass end
+cost_function_traj_flip start
+[+1.3ms] cost_function_traj_flip end
+[+7.5ms] ======= i=1=======
+cost_function_traj_flip start
+[+1.6ms] cost_function_traj_flip end
+backward_pass start
+[+4.6ms] backward_pass end
+forward_pass start
+[+1.3ms] forward_pass end
+cost_function_traj_flip start
+[+1.7ms] cost_function_traj_flip end
+[+1.0ms] ************end solve*************
+[+0.5ms] ======= i=0=======
+cost_function_traj_flip start
+[+0.9ms] cost_function_traj_flip end
+backward_pass start
+[+2.1ms] backward_pass end
+forward_pass start
+[+1.5ms] forward_pass end
+cost_function_traj_flip start
+[+8.3ms] cost_function_traj_flip end
+[+3.7ms] ======= i=1=======
+cost_function_traj_flip start
+[+0.4ms] cost_function_traj_flip end
+backward_pass start
+[+2.0ms] backward_pass end
+forward_pass start
+[+0.6ms] forward_pass end
+cost_function_traj_flip start
+[+0.4ms] cost_function_traj_flip end
+[+7.3ms] ************end solve*************
+[+0.5ms] ======= i=0=======
+cost_function_traj_flip start
+[+1.0ms] cost_function_traj_flip end
+backward_pass start
+[+2.5ms] backward_pass end
+forward_pass start
+[+0.7ms] forward_pass end
+cost_function_traj_flip start
+[+4.6ms] cost_function_traj_flip end
+[+5.7ms] ======= i=1=======
+cost_function_traj_flip start
+[+1.5ms] cost_function_traj_flip end
+backward_pass start
+[+6.8ms] backward_pass end
+forward_pass start
+[+2.7ms] forward_pass end
+cost_function_traj_flip start
+[+3.9ms] cost_function_traj_flip end
+[+1.9ms] ************end solve*************
+[+0.5ms] ======= i=0=======
+cost_function_traj_flip start
+[+1.1ms] cost_function_traj_flip end
+backward_pass start
+[+7.5ms] backward_pass end
+forward_pass start
+[+2.4ms] forward_pass end
+cost_function_traj_flip start
+[+1.4ms] cost_function_traj_flip end
+[+1.9ms] ======= i=1=======
+cost_function_traj_flip start
+[+1.7ms] cost_function_traj_flip end
+backward_pass start
+[+13.4ms] backward_pass end
+forward_pass start
+[+1.6ms] forward_pass end
+cost_function_traj_flip start
+[+0.9ms] cost_function_traj_flip end
+[+1.9ms] ************end solve*************
+[+1.2ms] ======= i=0=======
+cost_function_traj_flip start
+[+1.5ms] cost_function_traj_flip end
+backward_pass start
+[+2.3ms] backward_pass end
+forward_pass start
+[+2.3ms] forward_pass end
+cost_function_traj_flip start
+[+1.3ms] cost_function_traj_flip end
+[+9.5ms] ======= i=1=======
+cost_function_traj_flip start
+[+1.6ms] cost_function_traj_flip end
+backward_pass start
+[+5.7ms] backward_pass end
+forward_pass start
+[+2.3ms] forward_pass end
+cost_function_traj_flip start
+[+1.1ms] cost_function_traj_flip end
+[+1.2ms] ************end solve*************
+[+0.8ms] ======= i=0=======
+cost_function_traj_flip start
+[+0.9ms] cost_function_traj_flip end
+backward_pass start
+[+1.9ms] backward_pass end
+forward_pass start
+[+1.3ms] forward_pass end
+cost_function_traj_flip start
+[+1.1ms] cost_function_traj_flip end
+[+17.1ms] ======= i=1=======
+cost_function_traj_flip start
+[+3.0ms] cost_function_traj_flip end
+backward_pass start
+[+8.4ms] backward_pass end
+forward_pass start
+[+1.7ms] forward_pass end
+cost_function_traj_flip start
+[+21.2ms] cost_function_traj_flip end
+[+3.1ms] ************end solve*************
+[+0.8ms] ======= i=0=======
+cost_function_traj_flip start
+[+1.0ms] cost_function_traj_flip end
+backward_pass start
+[+6.6ms] backward_pass end
+forward_pass start
+[+2.4ms] forward_pass end
+cost_function_traj_flip start
+[+1.4ms] cost_function_traj_flip end
+[+3.8ms] ======= i=1=======
+cost_function_traj_flip start
+[+1.7ms] cost_function_traj_flip end
+backward_pass start
+[+2.9ms] backward_pass end
+forward_pass start
+[+1.8ms] forward_pass end
+cost_function_traj_flip start
+[+0.9ms] cost_function_traj_flip end
+[+5.1ms] ************end solve*************
+[+0.8ms] ======= i=0=======
+cost_function_traj_flip start
+[+1.6ms] cost_function_traj_flip end
+backward_pass start
+[+5.0ms] backward_pass end
+forward_pass start
+[+0.9ms] forward_pass end
+cost_function_traj_flip start
+[+1.3ms] cost_function_traj_flip end
+[+6.2ms] ======= i=1=======
+cost_function_traj_flip start
+[+1.2ms] cost_function_traj_flip end
+backward_pass start
+[+5.6ms] backward_pass end
+forward_pass start
+[+2.6ms] forward_pass end
+cost_function_traj_flip start
+[+5.9ms] cost_function_traj_flip end
+[+8.2ms] ************end solve*************
+[+0.6ms] ======= i=0=======
+cost_function_traj_flip start
+[+0.6ms] cost_function_traj_flip end
+backward_pass start
+[+4.6ms] backward_pass end
+forward_pass start
+[+1.7ms] forward_pass end
+cost_function_traj_flip start
+[+1.2ms] cost_function_traj_flip end
+[+8.4ms] ======= i=1=======
+cost_function_traj_flip start
+[+6.2ms] cost_function_traj_flip end
+backward_pass start
+[+6.3ms] backward_pass end
+forward_pass start
+[+1.3ms] forward_pass end
+cost_function_traj_flip start
+[+0.6ms] cost_function_traj_flip end
+[+7.5ms] ************end solve*************
+[+9.6ms] ======= i=0=======
+cost_function_traj_flip start
+[+1.3ms] cost_function_traj_flip end
+backward_pass start
+[+3.2ms] backward_pass end
+forward_pass start
+[+1.6ms] forward_pass end
+cost_function_traj_flip start
+[+3.0ms] cost_function_traj_flip end
+[+12.8ms] ======= i=1=======
+cost_function_traj_flip start
+[+1.3ms] cost_function_traj_flip end
+backward_pass start
+[+8.2ms] backward_pass end
+forward_pass start
+[+1.3ms] forward_pass end
+cost_function_traj_flip start
+[+5.0ms] cost_function_traj_flip end
+[+1.0ms] ************end solve*************
+[+0.8ms] ======= i=0=======
+cost_function_traj_flip start
+[+3.8ms] cost_function_traj_flip end
+backward_pass start
+[+1.6ms] backward_pass end
+forward_pass start
+[+3.0ms] forward_pass end
+cost_function_traj_flip start
+[+0.4ms] cost_function_traj_flip end
+[+8.5ms] ======= i=1=======
+cost_function_traj_flip start
+[+2.4ms] cost_function_traj_flip end
+backward_pass start
+[+6.3ms] backward_pass end
+forward_pass start
+[+1.5ms] forward_pass end
+cost_function_traj_flip start
+[+2.2ms] cost_function_traj_flip end
+[+1.7ms] ************end solve*************
+[+3.6ms] ======= i=0=======
+cost_function_traj_flip start
+[+1.1ms] cost_function_traj_flip end
+backward_pass start
+[+2.9ms] backward_pass end
+forward_pass start
+[+2.5ms] forward_pass end
+cost_function_traj_flip start
+[+2.0ms] cost_function_traj_flip end
+[+9.4ms] ======= i=1=======
+cost_function_traj_flip start
+[+2.0ms] cost_function_traj_flip end
+backward_pass start
+[+9.6ms] backward_pass end
+forward_pass start
+[+4.7ms] forward_pass end
+cost_function_traj_flip start
+[+1.3ms] cost_function_traj_flip end
+[+1.7ms] ************end solve*************
+[+1.1ms] ======= i=0=======
+cost_function_traj_flip start
+[+1.4ms] cost_function_traj_flip end
+backward_pass start
+[+1.7ms] backward_pass end
+forward_pass start
+[+1.4ms] forward_pass end
+cost_function_traj_flip start
+[+0.9ms] cost_function_traj_flip end
+[+7.1ms] ======= i=1=======
+cost_function_traj_flip start
+[+6.0ms] cost_function_traj_flip end
+backward_pass start
+[+7.4ms] backward_pass end
+forward_pass start
+[+2.7ms] forward_pass end
+cost_function_traj_flip start
+[+1.2ms] cost_function_traj_flip end
+[+2.9ms] ************end solve*************
+[+0.2ms] ======= i=0=======
+cost_function_traj_flip start
+[+0.4ms] cost_function_traj_flip end
+backward_pass start
+[+3.5ms] backward_pass end
+forward_pass start
+[+3.8ms] forward_pass end
+cost_function_traj_flip start
+[+2.2ms] cost_function_traj_flip end
+[+2.0ms] ======= i=1=======
+cost_function_traj_flip start
+[+1.4ms] cost_function_traj_flip end
+backward_pass start
+[+1.6ms] backward_pass end
+forward_pass start
+[+0.5ms] forward_pass end
+cost_function_traj_flip start
+[+0.3ms] cost_function_traj_flip end
+[+9.0ms] ************end solve*************
+[+0.5ms] ======= i=0=======
+cost_function_traj_flip start
+[+4.9ms] cost_function_traj_flip end
+backward_pass start
+[+2.5ms] backward_pass end
+forward_pass start
+[+1.7ms] forward_pass end
+cost_function_traj_flip start
+[+1.0ms] cost_function_traj_flip end
+[+3.3ms] ======= i=1=======
+cost_function_traj_flip start
+[+0.9ms] cost_function_traj_flip end
+backward_pass start
+[+14.3ms] backward_pass end
+forward_pass start
+[+1.9ms] forward_pass end
+cost_function_traj_flip start
+[+1.7ms] cost_function_traj_flip end
+[+12.8ms] ************end solve*************
+[+0.1ms] ======= i=0=======
+cost_function_traj_flip start
+[+0.4ms] cost_function_traj_flip end
+backward_pass start
+[+2.2ms] backward_pass end
+forward_pass start
+[+0.8ms] forward_pass end
+cost_function_traj_flip start
+[+0.5ms] cost_function_traj_flip end
+[+9.3ms] ======= i=1=======
+cost_function_traj_flip start
+[+1.6ms] cost_function_traj_flip end
+backward_pass start
+[+17.4ms] backward_pass end
+forward_pass start
+[+1.9ms] forward_pass end
+cost_function_traj_flip start
+[+1.7ms] cost_function_traj_flip end
+[+1.9ms] ************end solve*************
+[+0.4ms] ======= i=0=======
+cost_function_traj_flip start
+[+1.1ms] cost_function_traj_flip end
+backward_pass start
+[+6.0ms] backward_pass end
+forward_pass start
+[+2.4ms] forward_pass end
+cost_function_traj_flip start
+[+1.5ms] cost_function_traj_flip end
+[+1.1ms] ======= i=1=======
+cost_function_traj_flip start
+[+5.7ms] cost_function_traj_flip end
+backward_pass start
+[+25.0ms] backward_pass end
+forward_pass start
+[+3.1ms] forward_pass end
+cost_function_traj_flip start
+[+0.6ms] cost_function_traj_flip end
+[+3.7ms] ************end solve*************
+[+0.8ms] ======= i=0=======
+cost_function_traj_flip start
+[+0.8ms] cost_function_traj_flip end
+backward_pass start
+[+1.9ms] backward_pass end
+forward_pass start
+[+1.1ms] forward_pass end
+cost_function_traj_flip start
+[+1.2ms] cost_function_traj_flip end
+[+7.8ms] ======= i=1=======
+cost_function_traj_flip start
+[+1.9ms] cost_function_traj_flip end
+backward_pass start
+[+15.1ms] backward_pass end
+forward_pass start
+[+1.6ms] forward_pass end
+cost_function_traj_flip start
+[+1.1ms] cost_function_traj_flip end
+[+14.7ms] ************end solve*************
+[+0.3ms] ======= i=0=======
+cost_function_traj_flip start
+[+0.7ms] cost_function_traj_flip end
+backward_pass start
+[+1.8ms] backward_pass end
+forward_pass start
+[+1.8ms] forward_pass end
+cost_function_traj_flip start
+[+4.6ms] cost_function_traj_flip end
+[+2.3ms] ======= i=1=======
+cost_function_traj_flip start
+[+14.5ms] cost_function_traj_flip end
+backward_pass start
+[+10.8ms] backward_pass end
+forward_pass start
+[+9.3ms] forward_pass end
+cost_function_traj_flip start
+[+1.1ms] cost_function_traj_flip end
+[+4.4ms] ************end solve*************
+[+0.3ms] ======= i=0=======
+cost_function_traj_flip start
+[+0.5ms] cost_function_traj_flip end
+backward_pass start
+[+1.7ms] backward_pass end
+forward_pass start
+[+1.0ms] forward_pass end
+cost_function_traj_flip start
+[+0.5ms] cost_function_traj_flip end
+[+13.1ms] ======= i=1=======
+cost_function_traj_flip start
+[+1.4ms] cost_function_traj_flip end
+backward_pass start
+[+1.9ms] backward_pass end
+forward_pass start
+[+0.5ms] forward_pass end
+cost_function_traj_flip start
+[+0.3ms] cost_function_traj_flip end
+[+10.4ms] ************end solve*************
+[+0.3ms] ======= i=0=======
+cost_function_traj_flip start
+[+0.6ms] cost_function_traj_flip end
+backward_pass start
+[+1.8ms] backward_pass end
+forward_pass start
+[+0.9ms] forward_pass end
+cost_function_traj_flip start
+[+0.5ms] cost_function_traj_flip end
+[+9.0ms] ======= i=1=======
+cost_function_traj_flip start
+[+3.1ms] cost_function_traj_flip end
+backward_pass start
+[+3.8ms] backward_pass end
+forward_pass start
+[+3.2ms] forward_pass end
+cost_function_traj_flip start
+[+1.9ms] cost_function_traj_flip end
+[+3.1ms] ************end solve*************
+[+0.3ms] ======= i=0=======
+cost_function_traj_flip start
+[+1.3ms] cost_function_traj_flip end
+backward_pass start
+[+2.6ms] backward_pass end
+forward_pass start
+[+1.1ms] forward_pass end
+cost_function_traj_flip start
+[+1.0ms] cost_function_traj_flip end
+[+5.9ms] ======= i=1=======
+cost_function_traj_flip start
+[+6.8ms] cost_function_traj_flip end
+backward_pass start
+[+9.5ms] backward_pass end
+forward_pass start
+[+1.7ms] forward_pass end
+cost_function_traj_flip start
+[+0.6ms] cost_function_traj_flip end
+[+4.6ms] ************end solve*************
+[+0.6ms] ======= i=0=======
+cost_function_traj_flip start
+[+1.4ms] cost_function_traj_flip end
+backward_pass start
+[+2.2ms] backward_pass end
+forward_pass start
+[+2.1ms] forward_pass end
+cost_function_traj_flip start
+[+1.6ms] cost_function_traj_flip end
+[+5.7ms] ======= i=1=======
+cost_function_traj_flip start
+[+7.3ms] cost_function_traj_flip end
+backward_pass start
+[+7.5ms] backward_pass end
+forward_pass start
+[+1.3ms] forward_pass end
+cost_function_traj_flip start
+[+0.9ms] cost_function_traj_flip end
+[+2.0ms] ************end solve*************
+[+0.7ms] ======= i=0=======
+cost_function_traj_flip start
+[+2.1ms] cost_function_traj_flip end
+backward_pass start
+[+12.3ms] backward_pass end
+forward_pass start
+[+2.1ms] forward_pass end
+cost_function_traj_flip start
+[+1.0ms] cost_function_traj_flip end
+[+13.0ms] ======= i=1=======
+cost_function_traj_flip start
+[+1.6ms] cost_function_traj_flip end
+backward_pass start
+[+14.4ms] backward_pass end
+forward_pass start
+[+3.1ms] forward_pass end
+cost_function_traj_flip start
+[+1.5ms] cost_function_traj_flip end
+[+2.9ms] ************end solve*************
+[+0.5ms] ======= i=0=======
+cost_function_traj_flip start
+[+1.4ms] cost_function_traj_flip end
+backward_pass start
+[+5.7ms] backward_pass end
+forward_pass start
+[+2.0ms] forward_pass end
+cost_function_traj_flip start
+[+5.0ms] cost_function_traj_flip end
+[+9.9ms] ======= i=1=======
+cost_function_traj_flip start
+[+1.4ms] cost_function_traj_flip end
+backward_pass start
+[+1.9ms] backward_pass end
+forward_pass start
+[+0.6ms] forward_pass end
+cost_function_traj_flip start
+[+1.6ms] cost_function_traj_flip end
+[+7.5ms] ************end solve*************
+[+0.3ms] ======= i=0=======
+cost_function_traj_flip start
+[+5.0ms] cost_function_traj_flip end
+backward_pass start
+[+3.0ms] backward_pass end
+forward_pass start
+[+7.1ms] forward_pass end
+cost_function_traj_flip start
+[+1.2ms] cost_function_traj_flip end
+[+3.5ms] ======= i=1=======
+cost_function_traj_flip start
+[+1.1ms] cost_function_traj_flip end
+backward_pass start
+[+1.6ms] backward_pass end
+forward_pass start
+[+0.6ms] forward_pass end
+cost_function_traj_flip start
+[+0.5ms] cost_function_traj_flip end
+[+11.8ms] ************end solve*************
+[+0.8ms] ======= i=0=======
+cost_function_traj_flip start
+[+10.4ms] cost_function_traj_flip end
+backward_pass start
+[+2.1ms] backward_pass end
+forward_pass start
+[+1.8ms] forward_pass end
+cost_function_traj_flip start
+[+0.8ms] cost_function_traj_flip end
+[+8.1ms] ======= i=1=======
+cost_function_traj_flip start
+[+10.0ms] cost_function_traj_flip end
+backward_pass start
+[+9.3ms] backward_pass end
+forward_pass start
+[+1.8ms] forward_pass end
+cost_function_traj_flip start
+[+1.2ms] cost_function_traj_flip end
+[+1.6ms] ************end solve*************
+[+2.1ms] ======= i=0=======
+cost_function_traj_flip start
+[+3.8ms] cost_function_traj_flip end
+backward_pass start
+[+3.6ms] backward_pass end
+forward_pass start
+[+0.8ms] forward_pass end
+cost_function_traj_flip start
+[+7.3ms] cost_function_traj_flip end
+[+8.6ms] ======= i=1=======
+cost_function_traj_flip start
+[+1.8ms] cost_function_traj_flip end
+backward_pass start
+[+3.7ms] backward_pass end
+forward_pass start
+[+0.7ms] forward_pass end
+cost_function_traj_flip start
+[+0.5ms] cost_function_traj_flip end
+[+8.4ms] ************end solve*************
+[+1.2ms] ======= i=0=======
+cost_function_traj_flip start
+[+0.5ms] cost_function_traj_flip end
+backward_pass start
+[+3.3ms] backward_pass end
+forward_pass start
+[+0.9ms] forward_pass end
+cost_function_traj_flip start
+[+0.5ms] cost_function_traj_flip end
+[+9.0ms] ======= i=1=======
+cost_function_traj_flip start
+[+8.6ms] cost_function_traj_flip end
+backward_pass start
+[+9.0ms] backward_pass end
+forward_pass start
+[+2.6ms] forward_pass end
+cost_function_traj_flip start
+[+13.5ms] cost_function_traj_flip end
+[+2.9ms] ************end solve*************
+[+0.7ms] ======= i=0=======
+cost_function_traj_flip start
+[+1.1ms] cost_function_traj_flip end
+backward_pass start
+[+5.3ms] backward_pass end
+forward_pass start
+[+2.0ms] forward_pass end
+cost_function_traj_flip start
+[+1.1ms] cost_function_traj_flip end
+[+2.0ms] ======= i=1=======
+cost_function_traj_flip start
+[+0.7ms] cost_function_traj_flip end
+backward_pass start
+[+14.0ms] backward_pass end
+forward_pass start
+[+1.8ms] forward_pass end
+cost_function_traj_flip start
+[+1.2ms] cost_function_traj_flip end
+[+1.5ms] ************end solve*************
+[+0.3ms] ======= i=0=======
+cost_function_traj_flip start
+[+1.2ms] cost_function_traj_flip end
+backward_pass start
+[+5.2ms] backward_pass end
+forward_pass start
+[+2.0ms] forward_pass end
+cost_function_traj_flip start
+[+30.6ms] cost_function_traj_flip end
+[+3.3ms] ======= i=1=======
+cost_function_traj_flip start
+[+3.3ms] cost_function_traj_flip end
+backward_pass start
+[+14.0ms] backward_pass end
+forward_pass start
+[+2.8ms] forward_pass end
+cost_function_traj_flip start
+[+1.7ms] cost_function_traj_flip end
+[+2.8ms] ************end solve*************
+[+0.8ms] ======= i=0=======
+cost_function_traj_flip start
+[+2.2ms] cost_function_traj_flip end
+backward_pass start
+[+11.6ms] backward_pass end
+forward_pass start
+[+3.3ms] forward_pass end
+cost_function_traj_flip start
+[+1.2ms] cost_function_traj_flip end
+[+2.0ms] ======= i=1=======
+cost_function_traj_flip start
+[+11.5ms] cost_function_traj_flip end
+backward_pass start
+[+8.0ms] backward_pass end
+forward_pass start
+[+1.5ms] forward_pass end
+cost_function_traj_flip start
+[+1.6ms] cost_function_traj_flip end
+[+1.8ms] ************end solve*************
+[+0.8ms] ======= i=0=======
+cost_function_traj_flip start
+[+2.1ms] cost_function_traj_flip end
+backward_pass start
+[+9.8ms] backward_pass end
+forward_pass start
+[+2.4ms] forward_pass end
+cost_function_traj_flip start
+[+1.1ms] cost_function_traj_flip end
+[+7.4ms] ======= i=1=======
+cost_function_traj_flip start
+[+1.3ms] cost_function_traj_flip end
+backward_pass start
+[+19.7ms] backward_pass end
+forward_pass start
+[+8.0ms] forward_pass end
+cost_function_traj_flip start
+[+2.1ms] cost_function_traj_flip end
+[+1.6ms] ************end solve*************
+[+1.1ms] ======= i=0=======
+cost_function_traj_flip start
+[+1.3ms] cost_function_traj_flip end
+backward_pass start
+[+12.1ms] backward_pass end
+forward_pass start
+[+3.3ms] forward_pass end
+cost_function_traj_flip start
+[+2.1ms] cost_function_traj_flip end
+[+0.8ms] ======= i=1=======
+cost_function_traj_flip start
+[+1.7ms] cost_function_traj_flip end
+backward_pass start
+[+8.5ms] backward_pass end
+forward_pass start
+[+12.3ms] forward_pass end
+cost_function_traj_flip start
+[+1.8ms] cost_function_traj_flip end
+[+2.1ms] ************end solve*************
+[+0.6ms] ======= i=0=======
+cost_function_traj_flip start
+[+1.1ms] cost_function_traj_flip end
+backward_pass start
+[+1.9ms] backward_pass end
+forward_pass start
+[+4.3ms] forward_pass end
+cost_function_traj_flip start
+[+1.1ms] cost_function_traj_flip end
+[+1.6ms] ======= i=1=======
+cost_function_traj_flip start
+[+0.9ms] cost_function_traj_flip end
+backward_pass start
+[+7.9ms] backward_pass end
+forward_pass start
+[+4.6ms] forward_pass end
+cost_function_traj_flip start
+[+2.1ms] cost_function_traj_flip end
+[+3.8ms] ************end solve*************
+[+0.7ms] ======= i=0=======
+cost_function_traj_flip start
+[+1.3ms] cost_function_traj_flip end
+backward_pass start
+[+3.8ms] backward_pass end
+forward_pass start
+[+2.1ms] forward_pass end
+cost_function_traj_flip start
+[+1.8ms] cost_function_traj_flip end
+[+6.1ms] ======= i=1=======
+cost_function_traj_flip start
+[+1.4ms] cost_function_traj_flip end
+backward_pass start
+[+11.6ms] backward_pass end
+forward_pass start
+[+1.2ms] forward_pass end
+cost_function_traj_flip start
+[+1.1ms] cost_function_traj_flip end
+[+1.8ms] ************end solve*************
+[+1.3ms] ======= i=0=======
+cost_function_traj_flip start
+[+0.9ms] cost_function_traj_flip end
+backward_pass start
+[+8.2ms] backward_pass end
+forward_pass start
+[+1.5ms] forward_pass end
+cost_function_traj_flip start
+[+0.5ms] cost_function_traj_flip end
+[+7.8ms] ======= i=1=======
+cost_function_traj_flip start
+[+1.0ms] cost_function_traj_flip end
+backward_pass start
+[+8.9ms] backward_pass end
+forward_pass start
+[+1.4ms] forward_pass end
+cost_function_traj_flip start
+[+0.8ms] cost_function_traj_flip end
+[+4.3ms] ************end solve*************
+[+1.1ms] ======= i=0=======
+cost_function_traj_flip start
+[+1.4ms] cost_function_traj_flip end
+backward_pass start
+[+4.0ms] backward_pass end
+forward_pass start
+[+6.1ms] forward_pass end
+cost_function_traj_flip start
+[+1.2ms] cost_function_traj_flip end
+[+15.3ms] ======= i=1=======
+cost_function_traj_flip start
+[+2.3ms] cost_function_traj_flip end
+backward_pass start
+[+3.0ms] backward_pass end
+forward_pass start
+[+0.9ms] forward_pass end
+cost_function_traj_flip start
+[+0.5ms] cost_function_traj_flip end
+[+9.4ms] ************end solve*************
+[+0.1ms] ======= i=0=======
+cost_function_traj_flip start
+[+2.4ms] cost_function_traj_flip end
+backward_pass start
+[+11.9ms] backward_pass end
+forward_pass start
+[+2.4ms] forward_pass end
+cost_function_traj_flip start
+[+2.0ms] cost_function_traj_flip end
+[+2.3ms] ======= i=1=======
+cost_function_traj_flip start
+[+1.2ms] cost_function_traj_flip end
+backward_pass start
+[+7.0ms] backward_pass end
+forward_pass start
+[+1.3ms] forward_pass end
+cost_function_traj_flip start
+[+0.7ms] cost_function_traj_flip end
+[+11.8ms] ************end solve*************
+[+0.8ms] ======= i=0=======
+cost_function_traj_flip start
+[+5.7ms] cost_function_traj_flip end
+backward_pass start
+[+10.3ms] backward_pass end
+forward_pass start
+[+11.2ms] forward_pass end
+cost_function_traj_flip start
+[+2.8ms] cost_function_traj_flip end
+[+5.5ms] ======= i=1=======
+cost_function_traj_flip start
+[+5.8ms] cost_function_traj_flip end
+backward_pass start
+[+16.7ms] backward_pass end
+forward_pass start
+[+1.0ms] forward_pass end
+cost_function_traj_flip start
+[+0.7ms] cost_function_traj_flip end
+[+5.3ms] ************end solve*************
+[+0.7ms] ======= i=0=======
+cost_function_traj_flip start
+[+1.2ms] cost_function_traj_flip end
+backward_pass start
+[+1.6ms] backward_pass end
+forward_pass start
+[+0.8ms] forward_pass end
+cost_function_traj_flip start
+[+0.4ms] cost_function_traj_flip end
+[+10.0ms] ======= i=1=======
+cost_function_traj_flip start
+[+4.0ms] cost_function_traj_flip end
+backward_pass start
+[+4.4ms] backward_pass end
+forward_pass start
+[+1.1ms] forward_pass end
+cost_function_traj_flip start
+[+1.1ms] cost_function_traj_flip end
+[+3.1ms] ************end solve*************
+[+0.2ms] ======= i=0=======
+cost_function_traj_flip start
+[+0.3ms] cost_function_traj_flip end
+backward_pass start
+[+1.4ms] backward_pass end
+forward_pass start
+[+0.9ms] forward_pass end
+cost_function_traj_flip start
+[+2.1ms] cost_function_traj_flip end
+[+8.2ms] ======= i=1=======
+cost_function_traj_flip start
+[+0.8ms] cost_function_traj_flip end
+backward_pass start
+[+1.9ms] backward_pass end
+forward_pass start
+[+0.7ms] forward_pass end
+cost_function_traj_flip start
+[+0.4ms] cost_function_traj_flip end
+[+8.3ms] ************end solve*************

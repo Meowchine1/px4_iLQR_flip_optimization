@@ -309,6 +309,7 @@ class ModelPredictiveControlNode(Node):
     def actuator_motors_callback(self, msg: ActuatorMotors): 
         #перевод из силы в квадрат угловой скорости
         self.actuator_motors = np.sqrt(np.clip(msg.control[:4], 0.0, None) / K_THRUST)
+        #self.u_target_traj = jnp.tile(self.actuator_motors, (horizon, 1)) 
         #self.get_logger().info(f"self.actuator_motors {self.actuator_motors}")
 
     def send_msg_to_client(self, msg):
@@ -321,9 +322,10 @@ class ModelPredictiveControlNode(Node):
         command = msg.data.strip().lower()
         #self.get_logger().info(f"Received command: {command}")
         if command == "takeoff":
-            self.phase = command
+            self.phase = "takeoff"
             self.to_client_f = True
-            self.optimized_traj_f = True 
+            self.optimized_traj_f = True
+            self.send_msg_to_client("mpc_on")
         else:
             self.get_logger().warn(f"Unknown command: {command}")
 
@@ -339,21 +341,18 @@ class ModelPredictiveControlNode(Node):
             
             # Логирование в CSV
             self.log_optimized_traj()
-
-    # =============================нет колбека========================================
+ 
     def odom_callback(self, msg: Odometry):
         #self.get_logger().info("odom_callback")
         self.odom_callback_position = [msg.pose.pose.position.x, msg.pose.pose.position.y, msg.pose.pose.position.z]
         self.odom_callback_orientation = [msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, msg.pose.pose.orientation.z, msg.pose.pose.orientation.w]
-        #self.get_logger().info(f"{self.odom_callback_orientation} ")
-    # ==============================нет колбека=======================================
-
+        
     def log_optimized_traj(self):
         log_base = self.log_base
         file_path = os.path.join(log_base, 'optimized_traj_log.csv')
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
-        X_flat = np.asarray(self.X_opt).flatten()
+        X_flat = np.asarray(self.X_opt[0]).flatten()
         u_flat = np.asarray(self.u_optimal).flatten()
         i_final = [self.i_final]
         cost_final = [self.cost_final]
@@ -395,6 +394,12 @@ class ModelPredictiveControlNode(Node):
     def log_ilqr(self, data: str):
         os.makedirs(self.ilqr_log_base, exist_ok=True)
         log_path = os.path.join(self.ilqr_log_base, "ILQR_run_mpc().txt")
+        with open(log_path, "a") as f:
+            f.write(data + "\n")
+
+    def log_mpc(self, data: str):
+        os.makedirs(self.ilqr_log_base, exist_ok=True)
+        log_path = os.path.join(self.ilqr_log_base, "MPC_target.txt")
         with open(log_path, "a") as f:
             f.write(data + "\n")
       
@@ -482,59 +487,66 @@ class ModelPredictiveControlNode(Node):
         with self.mpc_lock:
             start_time = time.time()
             self.log_ilqr(f"============= phase: {self.phase}=============")
-            try: 
-                if self.phase != 'init':
-                    self.current_time = self.get_clock().now().nanoseconds * 1e-9
-                    if self.phase == 'takeoff':
-                        self.send_msg_to_client("mpc_on")
-                        self.takeoff_targets()
-                        self.log_ilqr(f"takeoff\n self.ekf.x[2]={self.ekf.x[2]} \
-                                       self.ekf.x[2] - self.takeoff_altitude={self.ekf.x[2] - self.takeoff_altitude}")
-                        if abs(self.ekf.x[2] - self.takeoff_altitude) < self.takeoff_tol:
-                            self.phase = 'flip'
-                            self.flip_started_time = self.current_time
-                            #self.send_msg_to_client("flip")
+            try:
+                self.x0 = self.ekf.x.copy()  # [13]
+                self.u_init = jnp.tile(self.actuator_motors, (horizon, 1))  # [horizon, 4]
+                #self.x_target_traj = jnp.zeros((horizon + 1, 13))
+                #self.u_target_traj = jnp.tile(self.actuator_motors, (horizon, 1))  # [horizon, 4]
+                self.current_time = self.get_clock().now().nanoseconds * 1e-9
+                if self.phase == 'takeoff':
+                    self.send_msg_to_client("mpc_on")# на всякий случай если сообщене не дойдет с одного раза,
+                                                     # чтобы переключить контроллер полета на прием управления траектории
+                    self.takeoff_targets()
+                    self.log_ilqr(f"takeoff\n self.ekf.x[2]={self.ekf.x[2]} \
+                                    self.ekf.x[2] - self.takeoff_altitude={self.ekf.x[2] - self.takeoff_altitude}")
+                    if abs(self.ekf.x[2] - self.takeoff_altitude) < self.takeoff_tol:
+                        self.phase = 'flip'
+                        self.flip_started_time = self.current_time 
 
-                    elif self.phase == 'flip': 
-                        self.flip_targets()
-                        self.log_ilqr(f"flip\nabs(roll_current)={abs(self.roll_current)}") 
+                elif self.phase == 'flip': 
+                    self.flip_targets()
+                    self.log_ilqr(f"flip\nabs(roll_current)={abs(self.roll_current)}") 
 
-                        if jnp.isclose(self.roll_current, 2 * jnp.pi, atol=0.1):# выражение устойчивее к шуму чем аналогичное с abs  
-                            self.phase = 'recovery'
-                            self.recovery_start_time = self.current_time
+                    if jnp.isclose(self.roll_current, 2 * jnp.pi, atol=0.1):# выражение устойчивее к шуму чем аналогичное с abs  
+                        self.phase = 'recovery'
+                        self.recovery_start_time = self.current_time
 
-                    elif self.phase == 'recovery':
-                        self.recovery_targets()
-                        if abs(self.roll_current) <= self.roll_abs_tol:
-                            self.phase = 'land'
+                elif self.phase == 'recovery':
+                    self.recovery_targets()
+                    if abs(self.roll_current) <= self.roll_abs_tol:
+                        self.phase = 'land'
 
-                    elif self.phase == 'land':
-                            self.to_client_f = False
-                            self.optimized_traj_f = False
-                            self.done = True
-                            self.send_msg_to_client("land")
+                elif self.phase == 'land':
+                        self.to_client_f = False
+                        self.optimized_traj_f = False
+                        self.done = True
+                        self.send_msg_to_client("land")
 
-                    """
-                    Вычисляет оптимальную траекторию состояний и управляющих воздействий
-                    от текущего состояния self.x0, используя iLQR.
-                    """ 
-                    # Используем ILQR для расчета оптимальной траектории
-                    X_opt, U_opt, i_final, cost_final = self.optimizer.solve( 
-                        x0=self.x0,
-                        u_init=self.u_init,
-                        Q=Q,
-                        R=R,
-                        Qf=Qf,
-                        x_target_traj=self.x_target_traj,
-                        u_target_traj=self.u_target_traj
-                    )
+                """
+                Вычисляет оптимальную траекторию состояний и управляющих воздействий
+                от текущего состояния self.x0, используя iLQR.
+                """ 
+                self.log_mpc(f"x0:{self.x0}")
+                self.log_mpc(f"u_init:{self.u_init}")
+                self.log_mpc(f"self.x_target_traj:{self.x_target_traj}")
+                self.log_mpc(f"self.u_target_traj:{self.u_target_traj}")
+                # Используем ILQR для расчета оптимальной траектории
+                X_opt, U_opt, i_final, cost_final = self.optimizer.solve( 
+                    x0=self.x0,
+                    u_init=self.u_init,
+                    Q=Q,
+                    R=R,
+                    Qf=Qf,
+                    x_target_traj=self.x_target_traj,
+                    u_target_traj=self.u_target_traj
+                )
 
-                    self.X_opt = np.array(X_opt)          # Преобразование из jnp в np
-                    self.u_optimal = np.array(U_opt[0])      
-                    self.i_final = i_final
-                    self.cost_final = float(cost_final)   # Обеспечиваем float, а не jnp.scalar
- 
-                    self.send_optimized_traj()
+                self.X_opt = np.array(X_opt)          # Преобразование из jnp в np
+                self.u_optimal = np.array(U_opt[0])      
+                self.i_final = i_final
+                self.cost_final = float(cost_final)   # Обеспечиваем float, а не jnp.scalar
+
+                self.send_optimized_traj()
                     
             except Exception as e:
                 self.log_ilqr(f"Ошибка при выполнении MPC: {str(e)}")
@@ -550,7 +562,8 @@ class ModelPredictiveControlNode(Node):
              
     def mpc_control_loop(self):
         # Запуск в отдельном потоке
-        threading.Thread(target=self.run_mpc_thread).start()
+        if self.optimized_traj_f:
+            threading.Thread(target=self.run_mpc_thread).start()
 
     def ekf_filter_node_t(self):
         #self.get_logger().info("ekf_filter_node_t")
@@ -808,6 +821,17 @@ class ILQROptimizer:
         self.datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.log_base = os.path.join("MY_iLQR_LOG", self.datetime)
         self.last_log_time = time.time()  # инициализация
+        self.last_reduced_log_time =  time.time()
+
+    def log_ilqr_reduced(self, data:str):
+        os.makedirs(self.log_base, exist_ok=True)
+        now = time.time()
+        elapsed_ms = (now - self.last_reduced_log_time) * 1000  # в миллисекундах
+        self.last_log_time = now
+        log_path = os.path.join(self.log_base, "ILQR_solve()_reduced.txt")
+        
+        with open(log_path, "a") as f:
+            f.write(f"[+{elapsed_ms:.1f}ms] {data}\n")
 
     def log_ilqr(self, data: str):
         os.makedirs(self.log_base, exist_ok=True)
@@ -820,10 +844,11 @@ class ILQROptimizer:
             f.write(f"[+{elapsed_ms:.1f}ms] {data}\n")
 
     def solve(self,  x0,  u_init,  x_target_traj,  u_target_traj, Q, R, Qf,
-              max_iters=100, tol=1e-3, alpha=1.0):
+              max_iters=5, tol=1e-3, alpha=1.0):
         X =  simulate_trajectory(x0, u_init)
         #self.log_ilqr(f"X=self.simulate_trajectory(self.x0, self.u_init): X={X}") 
         U =  u_init
+        self.log_ilqr_reduced(f"start solve x_target_traj.shape {x_target_traj.shape}")
         for i in range(max_iters):
             self.log_ilqr(f"======= i={i}=======\ncost_function_traj_flip start")
 
@@ -842,17 +867,10 @@ class ILQROptimizer:
             if jnp.abs(cost_prev - cost_new) < tol:
                 break
             X, U = X_new, U_new
-        self.log_ilqr("************end solve*************")
+        self.log_ilqr(f"************end solve*************")
+        self.log_ilqr_reduced(f"end solve X.shape={X.shape}")
         return X, U, i, cost_new
  
-# @jit
-# def simulate_trajectory(self, self.x0, U):
-#     X = [self.x0]
-#     x = self.x0
-#     for u in U:
-#         x = self.f(x, u, self.dt)
-#         X.append(x)
-#     return jnp.stack(X)
 
 """
 f: функция динамики: f(x, u, dt) → x_next
