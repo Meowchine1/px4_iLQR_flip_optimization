@@ -1,0 +1,700 @@
+============= phase: takeoff=============
+Ошибка при выполнении MPC: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+Traceback (most recent call last):
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 554, in run_mpc_thread
+    self.takeoff_targets()
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 471, in takeoff_targets
+    self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/array_methods.py", line 798, in set
+    return scatter._scatter_update(self.array, self.index, values, lax.scatter,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 77, in _scatter_update
+    return _scatter_impl(x, y, scatter_op, treedef, static_idx, dynamic_idx,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 112, in _scatter_impl
+    y = jnp.broadcast_to(y, tuple(indexer.slice_shape))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/lax_numpy.py", line 3133, in broadcast_to
+    return util._broadcast_to(array, shape)
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/util.py", line 280, in _broadcast_to
+    raise ValueError(msg.format(arr_shape, shape))
+ValueError: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+
+[mpc_control_loop] END phase: takeoff, duration: 0.347 s
+============= phase: takeoff=============
+Ошибка при выполнении MPC: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+Traceback (most recent call last):
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 554, in run_mpc_thread
+    self.takeoff_targets()
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 471, in takeoff_targets
+    self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/array_methods.py", line 798, in set
+    return scatter._scatter_update(self.array, self.index, values, lax.scatter,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 77, in _scatter_update
+    return _scatter_impl(x, y, scatter_op, treedef, static_idx, dynamic_idx,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 112, in _scatter_impl
+    y = jnp.broadcast_to(y, tuple(indexer.slice_shape))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/lax_numpy.py", line 3133, in broadcast_to
+    return util._broadcast_to(array, shape)
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/util.py", line 280, in _broadcast_to
+    raise ValueError(msg.format(arr_shape, shape))
+ValueError: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+
+[mpc_control_loop] END phase: takeoff, duration: 0.021 s
+============= phase: takeoff=============
+Ошибка при выполнении MPC: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+Traceback (most recent call last):
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 554, in run_mpc_thread
+    self.takeoff_targets()
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 471, in takeoff_targets
+    self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/array_methods.py", line 798, in set
+    return scatter._scatter_update(self.array, self.index, values, lax.scatter,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 77, in _scatter_update
+    return _scatter_impl(x, y, scatter_op, treedef, static_idx, dynamic_idx,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 112, in _scatter_impl
+    y = jnp.broadcast_to(y, tuple(indexer.slice_shape))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/lax_numpy.py", line 3133, in broadcast_to
+    return util._broadcast_to(array, shape)
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/util.py", line 280, in _broadcast_to
+    raise ValueError(msg.format(arr_shape, shape))
+ValueError: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+
+[mpc_control_loop] END phase: takeoff, duration: 0.016 s
+============= phase: takeoff=============
+Ошибка при выполнении MPC: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+Traceback (most recent call last):
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 554, in run_mpc_thread
+    self.takeoff_targets()
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 471, in takeoff_targets
+    self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/array_methods.py", line 798, in set
+    return scatter._scatter_update(self.array, self.index, values, lax.scatter,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 77, in _scatter_update
+    return _scatter_impl(x, y, scatter_op, treedef, static_idx, dynamic_idx,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 112, in _scatter_impl
+    y = jnp.broadcast_to(y, tuple(indexer.slice_shape))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/lax_numpy.py", line 3133, in broadcast_to
+    return util._broadcast_to(array, shape)
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/util.py", line 280, in _broadcast_to
+    raise ValueError(msg.format(arr_shape, shape))
+ValueError: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+
+[mpc_control_loop] END phase: takeoff, duration: 0.013 s
+============= phase: takeoff=============
+Ошибка при выполнении MPC: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+Traceback (most recent call last):
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 554, in run_mpc_thread
+    self.takeoff_targets()
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 471, in takeoff_targets
+    self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/array_methods.py", line 798, in set
+    return scatter._scatter_update(self.array, self.index, values, lax.scatter,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 77, in _scatter_update
+    return _scatter_impl(x, y, scatter_op, treedef, static_idx, dynamic_idx,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 112, in _scatter_impl
+    y = jnp.broadcast_to(y, tuple(indexer.slice_shape))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/lax_numpy.py", line 3133, in broadcast_to
+    return util._broadcast_to(array, shape)
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/util.py", line 280, in _broadcast_to
+    raise ValueError(msg.format(arr_shape, shape))
+ValueError: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+
+[mpc_control_loop] END phase: takeoff, duration: 0.012 s
+============= phase: takeoff=============
+Ошибка при выполнении MPC: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+Traceback (most recent call last):
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 554, in run_mpc_thread
+    self.takeoff_targets()
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 471, in takeoff_targets
+    self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/array_methods.py", line 798, in set
+    return scatter._scatter_update(self.array, self.index, values, lax.scatter,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 77, in _scatter_update
+    return _scatter_impl(x, y, scatter_op, treedef, static_idx, dynamic_idx,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 112, in _scatter_impl
+    y = jnp.broadcast_to(y, tuple(indexer.slice_shape))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/lax_numpy.py", line 3133, in broadcast_to
+    return util._broadcast_to(array, shape)
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/util.py", line 280, in _broadcast_to
+    raise ValueError(msg.format(arr_shape, shape))
+ValueError: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+
+[mpc_control_loop] END phase: takeoff, duration: 0.018 s
+============= phase: takeoff=============
+Ошибка при выполнении MPC: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+Traceback (most recent call last):
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 554, in run_mpc_thread
+    self.takeoff_targets()
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 471, in takeoff_targets
+    self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/array_methods.py", line 798, in set
+    return scatter._scatter_update(self.array, self.index, values, lax.scatter,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 77, in _scatter_update
+    return _scatter_impl(x, y, scatter_op, treedef, static_idx, dynamic_idx,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 112, in _scatter_impl
+    y = jnp.broadcast_to(y, tuple(indexer.slice_shape))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/lax_numpy.py", line 3133, in broadcast_to
+    return util._broadcast_to(array, shape)
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/util.py", line 280, in _broadcast_to
+    raise ValueError(msg.format(arr_shape, shape))
+ValueError: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+
+[mpc_control_loop] END phase: takeoff, duration: 0.013 s
+============= phase: takeoff=============
+Ошибка при выполнении MPC: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+Traceback (most recent call last):
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 554, in run_mpc_thread
+    self.takeoff_targets()
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 471, in takeoff_targets
+    self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/array_methods.py", line 798, in set
+    return scatter._scatter_update(self.array, self.index, values, lax.scatter,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 77, in _scatter_update
+    return _scatter_impl(x, y, scatter_op, treedef, static_idx, dynamic_idx,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 112, in _scatter_impl
+    y = jnp.broadcast_to(y, tuple(indexer.slice_shape))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/lax_numpy.py", line 3133, in broadcast_to
+    return util._broadcast_to(array, shape)
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/util.py", line 280, in _broadcast_to
+    raise ValueError(msg.format(arr_shape, shape))
+ValueError: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+
+[mpc_control_loop] END phase: takeoff, duration: 0.031 s
+============= phase: takeoff=============
+Ошибка при выполнении MPC: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+Traceback (most recent call last):
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 554, in run_mpc_thread
+    self.takeoff_targets()
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 471, in takeoff_targets
+    self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/array_methods.py", line 798, in set
+    return scatter._scatter_update(self.array, self.index, values, lax.scatter,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 77, in _scatter_update
+    return _scatter_impl(x, y, scatter_op, treedef, static_idx, dynamic_idx,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 112, in _scatter_impl
+    y = jnp.broadcast_to(y, tuple(indexer.slice_shape))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/lax_numpy.py", line 3133, in broadcast_to
+    return util._broadcast_to(array, shape)
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/util.py", line 280, in _broadcast_to
+    raise ValueError(msg.format(arr_shape, shape))
+ValueError: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+
+[mpc_control_loop] END phase: takeoff, duration: 0.011 s
+============= phase: takeoff=============
+Ошибка при выполнении MPC: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+Traceback (most recent call last):
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 554, in run_mpc_thread
+    self.takeoff_targets()
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 471, in takeoff_targets
+    self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/array_methods.py", line 798, in set
+    return scatter._scatter_update(self.array, self.index, values, lax.scatter,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 77, in _scatter_update
+    return _scatter_impl(x, y, scatter_op, treedef, static_idx, dynamic_idx,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 112, in _scatter_impl
+    y = jnp.broadcast_to(y, tuple(indexer.slice_shape))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/lax_numpy.py", line 3133, in broadcast_to
+    return util._broadcast_to(array, shape)
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/util.py", line 280, in _broadcast_to
+    raise ValueError(msg.format(arr_shape, shape))
+ValueError: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+
+[mpc_control_loop] END phase: takeoff, duration: 0.020 s
+============= phase: takeoff=============
+Ошибка при выполнении MPC: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+Traceback (most recent call last):
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 554, in run_mpc_thread
+    self.takeoff_targets()
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 471, in takeoff_targets
+    self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/array_methods.py", line 798, in set
+    return scatter._scatter_update(self.array, self.index, values, lax.scatter,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 77, in _scatter_update
+    return _scatter_impl(x, y, scatter_op, treedef, static_idx, dynamic_idx,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 112, in _scatter_impl
+    y = jnp.broadcast_to(y, tuple(indexer.slice_shape))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/lax_numpy.py", line 3133, in broadcast_to
+    return util._broadcast_to(array, shape)
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/util.py", line 280, in _broadcast_to
+    raise ValueError(msg.format(arr_shape, shape))
+ValueError: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+
+[mpc_control_loop] END phase: takeoff, duration: 0.015 s
+============= phase: takeoff=============
+Ошибка при выполнении MPC: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+Traceback (most recent call last):
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 554, in run_mpc_thread
+    self.takeoff_targets()
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 471, in takeoff_targets
+    self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/array_methods.py", line 798, in set
+    return scatter._scatter_update(self.array, self.index, values, lax.scatter,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 77, in _scatter_update
+    return _scatter_impl(x, y, scatter_op, treedef, static_idx, dynamic_idx,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 112, in _scatter_impl
+    y = jnp.broadcast_to(y, tuple(indexer.slice_shape))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/lax_numpy.py", line 3133, in broadcast_to
+    return util._broadcast_to(array, shape)
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/util.py", line 280, in _broadcast_to
+    raise ValueError(msg.format(arr_shape, shape))
+ValueError: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+
+[mpc_control_loop] END phase: takeoff, duration: 0.018 s
+============= phase: takeoff=============
+Ошибка при выполнении MPC: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+Traceback (most recent call last):
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 554, in run_mpc_thread
+    self.takeoff_targets()
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 471, in takeoff_targets
+    self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/array_methods.py", line 798, in set
+    return scatter._scatter_update(self.array, self.index, values, lax.scatter,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 77, in _scatter_update
+    return _scatter_impl(x, y, scatter_op, treedef, static_idx, dynamic_idx,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 112, in _scatter_impl
+    y = jnp.broadcast_to(y, tuple(indexer.slice_shape))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/lax_numpy.py", line 3133, in broadcast_to
+    return util._broadcast_to(array, shape)
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/util.py", line 280, in _broadcast_to
+    raise ValueError(msg.format(arr_shape, shape))
+ValueError: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+
+[mpc_control_loop] END phase: takeoff, duration: 0.021 s
+============= phase: takeoff=============
+Ошибка при выполнении MPC: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+Traceback (most recent call last):
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 554, in run_mpc_thread
+    self.takeoff_targets()
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 471, in takeoff_targets
+    self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/array_methods.py", line 798, in set
+    return scatter._scatter_update(self.array, self.index, values, lax.scatter,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 77, in _scatter_update
+    return _scatter_impl(x, y, scatter_op, treedef, static_idx, dynamic_idx,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 112, in _scatter_impl
+    y = jnp.broadcast_to(y, tuple(indexer.slice_shape))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/lax_numpy.py", line 3133, in broadcast_to
+    return util._broadcast_to(array, shape)
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/util.py", line 280, in _broadcast_to
+    raise ValueError(msg.format(arr_shape, shape))
+ValueError: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+
+[mpc_control_loop] END phase: takeoff, duration: 0.008 s
+============= phase: takeoff=============
+Ошибка при выполнении MPC: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+Traceback (most recent call last):
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 554, in run_mpc_thread
+    self.takeoff_targets()
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 471, in takeoff_targets
+    self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/array_methods.py", line 798, in set
+    return scatter._scatter_update(self.array, self.index, values, lax.scatter,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 77, in _scatter_update
+    return _scatter_impl(x, y, scatter_op, treedef, static_idx, dynamic_idx,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 112, in _scatter_impl
+    y = jnp.broadcast_to(y, tuple(indexer.slice_shape))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/lax_numpy.py", line 3133, in broadcast_to
+    return util._broadcast_to(array, shape)
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/util.py", line 280, in _broadcast_to
+    raise ValueError(msg.format(arr_shape, shape))
+ValueError: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+
+[mpc_control_loop] END phase: takeoff, duration: 0.016 s
+============= phase: takeoff=============
+Ошибка при выполнении MPC: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+Traceback (most recent call last):
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 554, in run_mpc_thread
+    self.takeoff_targets()
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 471, in takeoff_targets
+    self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/array_methods.py", line 798, in set
+    return scatter._scatter_update(self.array, self.index, values, lax.scatter,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 77, in _scatter_update
+    return _scatter_impl(x, y, scatter_op, treedef, static_idx, dynamic_idx,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 112, in _scatter_impl
+    y = jnp.broadcast_to(y, tuple(indexer.slice_shape))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/lax_numpy.py", line 3133, in broadcast_to
+    return util._broadcast_to(array, shape)
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/util.py", line 280, in _broadcast_to
+    raise ValueError(msg.format(arr_shape, shape))
+ValueError: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+
+[mpc_control_loop] END phase: takeoff, duration: 0.014 s
+============= phase: takeoff=============
+Ошибка при выполнении MPC: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+Traceback (most recent call last):
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 554, in run_mpc_thread
+    self.takeoff_targets()
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 471, in takeoff_targets
+    self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/array_methods.py", line 798, in set
+    return scatter._scatter_update(self.array, self.index, values, lax.scatter,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 77, in _scatter_update
+    return _scatter_impl(x, y, scatter_op, treedef, static_idx, dynamic_idx,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 112, in _scatter_impl
+    y = jnp.broadcast_to(y, tuple(indexer.slice_shape))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/lax_numpy.py", line 3133, in broadcast_to
+    return util._broadcast_to(array, shape)
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/util.py", line 280, in _broadcast_to
+    raise ValueError(msg.format(arr_shape, shape))
+ValueError: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+
+[mpc_control_loop] END phase: takeoff, duration: 0.015 s
+============= phase: takeoff=============
+Ошибка при выполнении MPC: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+Traceback (most recent call last):
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 554, in run_mpc_thread
+    self.takeoff_targets()
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 471, in takeoff_targets
+    self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/array_methods.py", line 798, in set
+    return scatter._scatter_update(self.array, self.index, values, lax.scatter,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 77, in _scatter_update
+    return _scatter_impl(x, y, scatter_op, treedef, static_idx, dynamic_idx,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 112, in _scatter_impl
+    y = jnp.broadcast_to(y, tuple(indexer.slice_shape))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/lax_numpy.py", line 3133, in broadcast_to
+    return util._broadcast_to(array, shape)
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/util.py", line 280, in _broadcast_to
+    raise ValueError(msg.format(arr_shape, shape))
+ValueError: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+
+[mpc_control_loop] END phase: takeoff, duration: 0.024 s
+============= phase: takeoff=============
+Ошибка при выполнении MPC: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+Traceback (most recent call last):
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 554, in run_mpc_thread
+    self.takeoff_targets()
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 471, in takeoff_targets
+    self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/array_methods.py", line 798, in set
+    return scatter._scatter_update(self.array, self.index, values, lax.scatter,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 77, in _scatter_update
+    return _scatter_impl(x, y, scatter_op, treedef, static_idx, dynamic_idx,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 112, in _scatter_impl
+    y = jnp.broadcast_to(y, tuple(indexer.slice_shape))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/lax_numpy.py", line 3133, in broadcast_to
+    return util._broadcast_to(array, shape)
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/util.py", line 280, in _broadcast_to
+    raise ValueError(msg.format(arr_shape, shape))
+ValueError: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+
+[mpc_control_loop] END phase: takeoff, duration: 0.007 s
+============= phase: takeoff=============
+Ошибка при выполнении MPC: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+Traceback (most recent call last):
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 554, in run_mpc_thread
+    self.takeoff_targets()
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 471, in takeoff_targets
+    self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/array_methods.py", line 798, in set
+    return scatter._scatter_update(self.array, self.index, values, lax.scatter,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 77, in _scatter_update
+    return _scatter_impl(x, y, scatter_op, treedef, static_idx, dynamic_idx,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 112, in _scatter_impl
+    y = jnp.broadcast_to(y, tuple(indexer.slice_shape))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/lax_numpy.py", line 3133, in broadcast_to
+    return util._broadcast_to(array, shape)
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/util.py", line 280, in _broadcast_to
+    raise ValueError(msg.format(arr_shape, shape))
+ValueError: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+
+[mpc_control_loop] END phase: takeoff, duration: 0.014 s
+============= phase: takeoff=============
+Ошибка при выполнении MPC: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+Traceback (most recent call last):
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 554, in run_mpc_thread
+    self.takeoff_targets()
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 471, in takeoff_targets
+    self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/array_methods.py", line 798, in set
+    return scatter._scatter_update(self.array, self.index, values, lax.scatter,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 77, in _scatter_update
+    return _scatter_impl(x, y, scatter_op, treedef, static_idx, dynamic_idx,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 112, in _scatter_impl
+    y = jnp.broadcast_to(y, tuple(indexer.slice_shape))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/lax_numpy.py", line 3133, in broadcast_to
+    return util._broadcast_to(array, shape)
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/util.py", line 280, in _broadcast_to
+    raise ValueError(msg.format(arr_shape, shape))
+ValueError: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+
+[mpc_control_loop] END phase: takeoff, duration: 0.018 s
+============= phase: takeoff=============
+Ошибка при выполнении MPC: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+Traceback (most recent call last):
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 554, in run_mpc_thread
+    self.takeoff_targets()
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 471, in takeoff_targets
+    self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/array_methods.py", line 798, in set
+    return scatter._scatter_update(self.array, self.index, values, lax.scatter,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 77, in _scatter_update
+    return _scatter_impl(x, y, scatter_op, treedef, static_idx, dynamic_idx,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 112, in _scatter_impl
+    y = jnp.broadcast_to(y, tuple(indexer.slice_shape))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/lax_numpy.py", line 3133, in broadcast_to
+    return util._broadcast_to(array, shape)
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/util.py", line 280, in _broadcast_to
+    raise ValueError(msg.format(arr_shape, shape))
+ValueError: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+
+[mpc_control_loop] END phase: takeoff, duration: 0.021 s
+============= phase: takeoff=============
+Ошибка при выполнении MPC: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+Traceback (most recent call last):
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 554, in run_mpc_thread
+    self.takeoff_targets()
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 471, in takeoff_targets
+    self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/array_methods.py", line 798, in set
+    return scatter._scatter_update(self.array, self.index, values, lax.scatter,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 77, in _scatter_update
+    return _scatter_impl(x, y, scatter_op, treedef, static_idx, dynamic_idx,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 112, in _scatter_impl
+    y = jnp.broadcast_to(y, tuple(indexer.slice_shape))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/lax_numpy.py", line 3133, in broadcast_to
+    return util._broadcast_to(array, shape)
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/util.py", line 280, in _broadcast_to
+    raise ValueError(msg.format(arr_shape, shape))
+ValueError: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+
+[mpc_control_loop] END phase: takeoff, duration: 0.011 s
+============= phase: takeoff=============
+Ошибка при выполнении MPC: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+Traceback (most recent call last):
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 554, in run_mpc_thread
+    self.takeoff_targets()
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 471, in takeoff_targets
+    self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/array_methods.py", line 798, in set
+    return scatter._scatter_update(self.array, self.index, values, lax.scatter,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 77, in _scatter_update
+    return _scatter_impl(x, y, scatter_op, treedef, static_idx, dynamic_idx,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 112, in _scatter_impl
+    y = jnp.broadcast_to(y, tuple(indexer.slice_shape))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/lax_numpy.py", line 3133, in broadcast_to
+    return util._broadcast_to(array, shape)
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/util.py", line 280, in _broadcast_to
+    raise ValueError(msg.format(arr_shape, shape))
+ValueError: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+
+[mpc_control_loop] END phase: takeoff, duration: 0.020 s
+============= phase: takeoff=============
+Ошибка при выполнении MPC: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+Traceback (most recent call last):
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 554, in run_mpc_thread
+    self.takeoff_targets()
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 471, in takeoff_targets
+    self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/array_methods.py", line 798, in set
+    return scatter._scatter_update(self.array, self.index, values, lax.scatter,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 77, in _scatter_update
+    return _scatter_impl(x, y, scatter_op, treedef, static_idx, dynamic_idx,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 112, in _scatter_impl
+    y = jnp.broadcast_to(y, tuple(indexer.slice_shape))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/lax_numpy.py", line 3133, in broadcast_to
+    return util._broadcast_to(array, shape)
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/util.py", line 280, in _broadcast_to
+    raise ValueError(msg.format(arr_shape, shape))
+ValueError: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+
+[mpc_control_loop] END phase: takeoff, duration: 0.023 s
+============= phase: takeoff=============
+Ошибка при выполнении MPC: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+Traceback (most recent call last):
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 554, in run_mpc_thread
+    self.takeoff_targets()
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 471, in takeoff_targets
+    self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/array_methods.py", line 798, in set
+    return scatter._scatter_update(self.array, self.index, values, lax.scatter,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 77, in _scatter_update
+    return _scatter_impl(x, y, scatter_op, treedef, static_idx, dynamic_idx,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 112, in _scatter_impl
+    y = jnp.broadcast_to(y, tuple(indexer.slice_shape))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/lax_numpy.py", line 3133, in broadcast_to
+    return util._broadcast_to(array, shape)
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/util.py", line 280, in _broadcast_to
+    raise ValueError(msg.format(arr_shape, shape))
+ValueError: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+
+[mpc_control_loop] END phase: takeoff, duration: 0.013 s
+============= phase: takeoff=============
+Ошибка при выполнении MPC: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+Traceback (most recent call last):
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 554, in run_mpc_thread
+    self.takeoff_targets()
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 471, in takeoff_targets
+    self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/array_methods.py", line 798, in set
+    return scatter._scatter_update(self.array, self.index, values, lax.scatter,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 77, in _scatter_update
+    return _scatter_impl(x, y, scatter_op, treedef, static_idx, dynamic_idx,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 112, in _scatter_impl
+    y = jnp.broadcast_to(y, tuple(indexer.slice_shape))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/lax_numpy.py", line 3133, in broadcast_to
+    return util._broadcast_to(array, shape)
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/util.py", line 280, in _broadcast_to
+    raise ValueError(msg.format(arr_shape, shape))
+ValueError: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+
+[mpc_control_loop] END phase: takeoff, duration: 0.031 s
+============= phase: takeoff=============
+Ошибка при выполнении MPC: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+Traceback (most recent call last):
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 554, in run_mpc_thread
+    self.takeoff_targets()
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 471, in takeoff_targets
+    self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/array_methods.py", line 798, in set
+    return scatter._scatter_update(self.array, self.index, values, lax.scatter,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 77, in _scatter_update
+    return _scatter_impl(x, y, scatter_op, treedef, static_idx, dynamic_idx,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 112, in _scatter_impl
+    y = jnp.broadcast_to(y, tuple(indexer.slice_shape))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/lax_numpy.py", line 3133, in broadcast_to
+    return util._broadcast_to(array, shape)
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/util.py", line 280, in _broadcast_to
+    raise ValueError(msg.format(arr_shape, shape))
+ValueError: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+
+[mpc_control_loop] END phase: takeoff, duration: 0.019 s
+============= phase: takeoff=============
+Ошибка при выполнении MPC: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+Traceback (most recent call last):
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 554, in run_mpc_thread
+    self.takeoff_targets()
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 471, in takeoff_targets
+    self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/array_methods.py", line 798, in set
+    return scatter._scatter_update(self.array, self.index, values, lax.scatter,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 77, in _scatter_update
+    return _scatter_impl(x, y, scatter_op, treedef, static_idx, dynamic_idx,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 112, in _scatter_impl
+    y = jnp.broadcast_to(y, tuple(indexer.slice_shape))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/lax_numpy.py", line 3133, in broadcast_to
+    return util._broadcast_to(array, shape)
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/util.py", line 280, in _broadcast_to
+    raise ValueError(msg.format(arr_shape, shape))
+ValueError: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+
+[mpc_control_loop] END phase: takeoff, duration: 0.016 s
+============= phase: takeoff=============
+Ошибка при выполнении MPC: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+Traceback (most recent call last):
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 554, in run_mpc_thread
+    self.takeoff_targets()
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 471, in takeoff_targets
+    self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/array_methods.py", line 798, in set
+    return scatter._scatter_update(self.array, self.index, values, lax.scatter,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 77, in _scatter_update
+    return _scatter_impl(x, y, scatter_op, treedef, static_idx, dynamic_idx,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 112, in _scatter_impl
+    y = jnp.broadcast_to(y, tuple(indexer.slice_shape))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/lax_numpy.py", line 3133, in broadcast_to
+    return util._broadcast_to(array, shape)
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/util.py", line 280, in _broadcast_to
+    raise ValueError(msg.format(arr_shape, shape))
+ValueError: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+
+[mpc_control_loop] END phase: takeoff, duration: 0.016 s
+============= phase: takeoff=============
+Ошибка при выполнении MPC: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+Traceback (most recent call last):
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 554, in run_mpc_thread
+    self.takeoff_targets()
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 471, in takeoff_targets
+    self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/array_methods.py", line 798, in set
+    return scatter._scatter_update(self.array, self.index, values, lax.scatter,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 77, in _scatter_update
+    return _scatter_impl(x, y, scatter_op, treedef, static_idx, dynamic_idx,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 112, in _scatter_impl
+    y = jnp.broadcast_to(y, tuple(indexer.slice_shape))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/lax_numpy.py", line 3133, in broadcast_to
+    return util._broadcast_to(array, shape)
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/util.py", line 280, in _broadcast_to
+    raise ValueError(msg.format(arr_shape, shape))
+ValueError: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+
+[mpc_control_loop] END phase: takeoff, duration: 0.015 s
+============= phase: takeoff=============
+Ошибка при выполнении MPC: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+Traceback (most recent call last):
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 554, in run_mpc_thread
+    self.takeoff_targets()
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 471, in takeoff_targets
+    self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/array_methods.py", line 798, in set
+    return scatter._scatter_update(self.array, self.index, values, lax.scatter,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 77, in _scatter_update
+    return _scatter_impl(x, y, scatter_op, treedef, static_idx, dynamic_idx,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 112, in _scatter_impl
+    y = jnp.broadcast_to(y, tuple(indexer.slice_shape))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/lax_numpy.py", line 3133, in broadcast_to
+    return util._broadcast_to(array, shape)
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/util.py", line 280, in _broadcast_to
+    raise ValueError(msg.format(arr_shape, shape))
+ValueError: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+
+[mpc_control_loop] END phase: takeoff, duration: 0.012 s
+============= phase: takeoff=============
+Ошибка при выполнении MPC: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+Traceback (most recent call last):
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 554, in run_mpc_thread
+    self.takeoff_targets()
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 471, in takeoff_targets
+    self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/array_methods.py", line 798, in set
+    return scatter._scatter_update(self.array, self.index, values, lax.scatter,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 77, in _scatter_update
+    return _scatter_impl(x, y, scatter_op, treedef, static_idx, dynamic_idx,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 112, in _scatter_impl
+    y = jnp.broadcast_to(y, tuple(indexer.slice_shape))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/lax_numpy.py", line 3133, in broadcast_to
+    return util._broadcast_to(array, shape)
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/util.py", line 280, in _broadcast_to
+    raise ValueError(msg.format(arr_shape, shape))
+ValueError: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+
+[mpc_control_loop] END phase: takeoff, duration: 0.029 s
+============= phase: takeoff=============
+Ошибка при выполнении MPC: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+Traceback (most recent call last):
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 554, in run_mpc_thread
+    self.takeoff_targets()
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 471, in takeoff_targets
+    self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/array_methods.py", line 798, in set
+    return scatter._scatter_update(self.array, self.index, values, lax.scatter,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 77, in _scatter_update
+    return _scatter_impl(x, y, scatter_op, treedef, static_idx, dynamic_idx,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 112, in _scatter_impl
+    y = jnp.broadcast_to(y, tuple(indexer.slice_shape))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/lax_numpy.py", line 3133, in broadcast_to
+    return util._broadcast_to(array, shape)
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/util.py", line 280, in _broadcast_to
+    raise ValueError(msg.format(arr_shape, shape))
+ValueError: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+
+[mpc_control_loop] END phase: takeoff, duration: 2.945 s
+============= phase: takeoff=============
+Ошибка при выполнении MPC: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+Traceback (most recent call last):
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 554, in run_mpc_thread
+    self.takeoff_targets()
+  File "/home/vor/ros2_px4_offboard_example_ws/install/px4_offboard/lib/python3.10/site-packages/px4_offboard/dynamics_drone_control.py", line 471, in takeoff_targets
+    self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/array_methods.py", line 798, in set
+    return scatter._scatter_update(self.array, self.index, values, lax.scatter,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 77, in _scatter_update
+    return _scatter_impl(x, y, scatter_op, treedef, static_idx, dynamic_idx,
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/ops/scatter.py", line 112, in _scatter_impl
+    y = jnp.broadcast_to(y, tuple(indexer.slice_shape))
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/lax_numpy.py", line 3133, in broadcast_to
+    return util._broadcast_to(array, shape)
+  File "/home/vor/.local/lib/python3.10/site-packages/jax/_src/numpy/util.py", line 280, in _broadcast_to
+    raise ValueError(msg.format(arr_shape, shape))
+ValueError: Incompatible shapes for broadcasting: (12,) and requested shape (13,)
+
+[mpc_control_loop] END phase: takeoff, duration: 0.027 s

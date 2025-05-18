@@ -6,8 +6,10 @@ from geometry_msgs.msg import Point
 from std_msgs.msg import Float32MultiArray
 from px4_msgs.msg import (VehicleAttitude, VehicleImu, ActuatorOutputs, ActuatorMotors, 
                           VehicleLocalPosition,SensorCombined,VehicleAngularVelocity, 
-                          VehicleAngularAccelerationSetpoint, VehicleMagnetometer, SensorBaro)
+                          VehicleAngularAccelerationSetpoint, VehicleMagnetometer, SensorBaro, EscStatus)
 import numpy as np
+
+ 
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
  
 from filterpy.kalman import ExtendedKalmanFilter
@@ -22,7 +24,6 @@ from datetime import datetime
    
 from quad_flip_msgs.msg import OptimizedTraj
 from rclpy.qos import QoSProfile
-from nav_msgs.msg import Odometry  # inner ROS2 EKF
 
 import threading
 from jax import jit, grad, jacobian, hessian, vmap, lax
@@ -49,25 +50,26 @@ dt = 0.1
 horizon = 10  # Горизонт предсказания
 n = 13        # Размерность состояния квадрокоптера (позиция, скорость, ориентация, угловая скорость) 
 m = 4         # Размерность управления (4 мотора)
-# * Настройка стоимостей 
+
+# ****************** Настройка стоимостей iLQR ******************
 Q = jnp.diag(jnp.array([
-        10.0, 10.0, 10.0,       # x, y, z — позиция важна
-        1.0, 1.0, 1.0,          # vx, vy, vz — скорость менее важна
-        0.0, 50.0, 50.0, 0.0,   # qw, qx, qy, qz — флип важен по qx, qy
-        5.0, 5.0, 1.0           # wx, wy, wz — особенно важно стабилизировать roll/pitch
-    ]))
+    1.0, 1.0, 10.0,       # x, y — менее важны, z — важна
+    1.0, 1.0, 1.0,        # vx, vy, vz
+    0.0, 50.0, 50.0, 0.0, # ориентация
+    5.0, 5.0, 1.0         # угловые скорости
+]))
 
 R = jnp.diag(jnp.array([
         0.001, 0.001, 0.001, 0.001  # все моторы слабо штрафуются
     ]))
 
-Qf = np.diag(jnp.array([
-        10.0, 10.0, 10.0,      # позиция — средне важно
-        0.1, 0.1, 0.1,         # скорость — не критично
-        0.0, 100.0, 100.0, 0.0, # ориентация — важны qx/qy (например, pitch flip)
-        10.0, 10.0, 1.0        # угловые скорости — важно, чтобы стабилизировался
-    ]))  
-
+Qf = jnp.diag(jnp.array([
+    1.0, 1.0, 10.0,       # позиции: x, y — меньше важны, z — важна
+    0.1, 0.1, 0.1,        # скорости
+    0.0, 100.0, 100.0, 0.0, # ориентация (qx, qy)
+    10.0, 10.0, 1.0       # угловые скорости
+]))
+ 
 # ===== MATRIX OPERTIONS =====
 # QUATERNION UTILS (SCIPY-based)
 def quat_to_rot_matrix_numpy(quat):
@@ -90,7 +92,7 @@ def quat_multiply_numpy(q, r):
         w0*y1 - x0*z1 + y0*w1 + z0*x1,
         w0*z1 + x0*y1 - y0*x1 + z0*w1
     ])
-
+ 
 def f_numpy(x, u, dt):
     m = MASS
     I = INERTIA
@@ -238,26 +240,17 @@ class MyEKF(ExtendedKalmanFilter):
 class ModelPredictiveControlNode(Node):
     def __init__(self):
         super().__init__('dynamic_model_node')   
-        qos_profile_for_odom = QoSProfile(depth=10)  # стандартный профиль
         qos_profile = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
             durability=DurabilityPolicy.TRANSIENT_LOCAL,
             history=HistoryPolicy.KEEP_LAST,
             depth=10
         )
-        
         self.datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.log_base = os.path.join("MY_LOG", self.datetime)
         self.ilqr_log_base = os.path.join("MY_iLQR_LOG", self.datetime)
-
         # == == == == == == == == == == == == == = PUBLISHERS = == == == == == == == == == == == == == == == == == == == == == ==
-        # паблишеры для ekf_filter_node
-        self.imu_pub = self.create_publisher(Imu, '/imu/data', qos_profile)
-        self.mag_pub = self.create_publisher(MagneticField, '/imu/mag', qos_profile)
-        self.baro_pub = self.create_publisher(FluidPressure, '/baro', qos_profile)
-        self.ekf_state_pub = self.create_publisher(Float32MultiArray, '/ekf/state', qos_profile)
         self.server_pub = self.create_publisher(String, '/drone/server_msg', qos_profile) 
-
         # == == == == == == == == == == == == == =SUBSCRIBERS= == = == == == == == == == == == == == == == == == == == == == == == 
         self.create_subscription(SensorCombined, '/fmu/out/sensor_combined', self.sensor_combined_callback, qos_profile)
         self.create_subscription(VehicleAngularVelocity, '/fmu/out/vehicle_angular_velocity', self.angular_velocity_callback, qos_profile)
@@ -268,72 +261,70 @@ class ModelPredictiveControlNode(Node):
 
         self.create_subscription(ActuatorOutputs, '/fmu/out/actuator_outputs', self.actuator_outputs_callback, qos_profile)
         self.create_subscription(ActuatorMotors, '/fmu/out/actuator_motors', self.actuator_motors_callback, qos_profile) 
-         
+        
+        # ****** RPM *******
+        self.create_subscription(EscStatus, '/fmu/out/esc_status', self.esc_status_callback, qos_profile)
         self.create_subscription(VehicleLocalPosition, '/fmu/out/vehicle_local_position', self.vehicle_local_position_callback, qos_profile)
         self.create_subscription(SensorBaro, '/fmu/out/sensor_baro', self.sensor_baro_callback, qos_profile)
         self.create_subscription(VehicleMagnetometer, '/fmu/out/vehicle_magnetometer', self.vehicle_magnetometer_callback, qos_profile)
         
-        # **** подписка на данные внутреннего EKF фильтра ekf_filter_node data **** /fmu/out/vehicle_odometry
-        self.create_subscription(Odometry, '/odometry/filtered', self.odom_callback, qos_profile_for_odom) 
         # == == == == == == == == == == == == == =DATA USED IN METHODS= == == == == == == == == == == == == == == == == == == ==  
         self.angularVelocity = np.zeros(3, dtype=np.float32)
         self.angular_acceleration = np.zeros(3, dtype=np.float32)
         self.vehicleImu_velocity_w = np.zeros(3, dtype=np.float32) # в мировых координатах 
         self.sensorCombined_linear_acceleration = np.zeros(3, dtype=np.float32)
         self.position = np.zeros(3, dtype=np.float32) # drone position estimates with IMU localization
-        self.motor_inputs = np.zeros(4, dtype=np.float32)  # в радианах
+        self.motor_inputs = np.zeros(4, dtype=np.float32)  #приближение в радианах
+        self.motor_rpms = np.zeros(4) # rpm from px4 topic
         self.vehicleAttitude_q = np.array([0.0, 0.0, 0.0, 1.0], dtype=np.float32) # quaternion from topic
         self.magnetometer_data = np.zeros(3, dtype=np.float32)
         self.baro_pressure = 0.0
         self.baro_altitude = 0.0
-        
         self.mag_yaw = 0.0
         self.actuator_motors = np.zeros(4)
         
         # FOR SITL TESTING  
         self.vehicleLocalPosition_position = np.zeros(3, dtype=np.float32)
-        # ekf_filter_node data
-        self.odom_callback_position = np.zeros(3, dtype=np.float32)
-        self.odom_callback_orientation = np.zeros(4, dtype=np.float32)
-
+  
         # =================================== OTHER TOPIC DATA ========================================================= 
         # [TOPIC NAME]_[PARAM NAME] OR [TOPIC NAME] IF PARAM = TOPIC NAME
         self.sensorCombined_angular_velocity = np.zeros(3, dtype=np.float32)
         self.angularVelocity_angular_acceleration = np.zeros(3, dtype=np.float32)
         self.baro_temperature = 0.0 # temperature in degrees Celsius
         # =================================== Гиперпараметры для EKF ===================================================
-        self.new_x=np.zeros(13)
+        #self.new_x=np.zeros(13)
         # * вектор состояния 13 штук: позиция, скорость, ориентация (4), угловые скорости 
         # * вектор измерений 14 штук: позиция, линейная скорость, ориентация (4), барометрическая высота  
-        self.ekf = MyEKF(dim_x=13, dim_z=13)
-        self.ekf.x = np.zeros(13)
-        self.ekf.x[6] = 1.0  # qw = 1 (единичный кватернион)
+        #self.ekf = MyEKF(dim_x=13, dim_z=13)
+        #self.ekf.x = np.zeros(13)
+        self.measurnments = np.zeros(13)
+        self.z= np.zeros(13)
+        #self.ekf.x[6] = 1.0  # qw = 1 (единичный кватернион)
         # * Covariance matrix
         # Ковариация состояния
-        self.ekf.P *= 0.1
+        #self.ekf.P *= 0.1
 
         # Процессный шум
-        self.ekf.Q = np.diag([
-            0.001, 0.001, 0.001,         # x, y, z
-            0.01, 0.01, 0.01,            # vx, vy, vz
-            0.0001, 0.0001, 0.0001, 0.0001,  # qw, qx, qy, qz
-            0.00001, 0.00001, 0.00001        # wx, wy, wz
-        ])
- 
+        #self.ekf.Q = np.diag([
+        #     0.001, 0.001, 0.001,         # x, y, z
+        #     0.01, 0.01, 0.01,            # vx, vy, vz
+        #     0.0001, 0.0001, 0.0001, 0.0001,  # qw, qx, qy, qz
+        #     0.00001, 0.00001, 0.00001        # wx, wy, wz
+        # ])
         # Измерительный шум (z не используется из позиции, вместо него — баро)
-        self.ekf.R = np.diag([
-            0.1, 0.1,                    # позиция x, y (м²)
-            0.0001, 0.0001, 0.0001,      # скорость vx, vy, vz
-            0.00001, 0.00001, 0.00001, 0.00001,  # qw, qx, qy, qz
-            0.00001, 0.00001, 0.00001,   # wx, wy, wz
-            0.5                          # баро (вместо позиции z)
-        ])
+        # self.ekf.R = np.diag([
+        #     0.1, 0.1,                    # позиция x, y (м²)
+        #     0.0001, 0.0001, 0.0001,      # скорость vx, vy, vz
+        #     0.00001, 0.00001, 0.00001, 0.00001,  # qw, qx, qy, qz
+        #     0.00001, 0.00001, 0.00001,   # wx, wy, wz
+        #     0.5                          # баро (вместо позиции z)
+        # ])
         #    ====    ====   Параметры ModelPredictiveController    ====     ====     ====     ====     ====     ====     ====
         self.optimizer = ILQROptimizer(
             logger=self.get_logger()) 
 
         self.phase = 'init'
-        self.takeoff_altitude = 5.0  # м
+        self.takeoff_altitude = -5.0  # м TODO DOES IT WOULD BE NEGATIVE?
         self.takeoff_tol = 0.1
         self.flip_started_time = None
         self.flip_duration = 1.0  # с, продолжительность флипа
@@ -351,8 +342,7 @@ class ModelPredictiveControlNode(Node):
 
          # ======= TIMERS =======
         #self.timer = self.create_timer(0.01, self.step_dynamics)
-        self.EKF_timer = self.create_timer(EKF_DT, self.EKF)
-        self.ekf_filter_node_timer = self.create_timer(0.1, self.ekf_filter_node_t) 
+        self.EKF_timer = self.create_timer(EKF_DT, self.EKF)  
         self.mpc_controller = self.create_timer(0.01, self.mpc_control_loop)
          
         # == == == =CLIENT SERVER INTERACTION= == == == 
@@ -366,27 +356,25 @@ class ModelPredictiveControlNode(Node):
         self.cost_final = 0.0
         self.done = False 
         self.to_client_f = False
-
         self.mpc_lock = threading.Lock()
-
-        self.x0 = self.ekf.x.copy()  # [13]
-        self.u_init = jnp.tile(self.actuator_motors, (horizon, 1))  # [horizon, 4]
+        #self.x0 = self.ekf.x.copy()
+        #self.u_init = jnp.tile(self.actuator_motors, (horizon, 1))
         self.x_target_traj = jnp.zeros((horizon + 1, 13))
-        self.u_target_traj = jnp.tile(self.actuator_motors, (horizon, 1))  # [horizon, 4]
+        self.u_target_traj = jnp.tile(self.motor_rpms, (horizon, 1))
         self.current_time = self.get_clock().now().nanoseconds * 1e-9
                 
-    def actuator_outputs_callback(self, msg: ActuatorOutputs):
+    def actuator_outputs_callback(self, msg: ActuatorOutputs):# TODO SHOULDNOT USE IT
         pwm_outputs = msg.output[:4]  # предполагаем, что 0-3 — это моторы
         # преобразование PWM в радианы в секунду (линейное приближение)
         self.motor_inputs = np.clip((np.array(pwm_outputs) - 1000.0) / 1000.0 * MAX_SPEED, 0.0, MAX_SPEED)
-        #self.get_logger().info(f"motor_inputs {self.motor_inputs}  pwm_outputs {pwm_outputs}")
- 
-    
-    def actuator_motors_callback(self, msg: ActuatorMotors): 
-        #перевод из силы в квадрат угловой скорости
+       
+    def actuator_motors_callback(self, msg: ActuatorMotors):# TODO SHOULDNOT USE IT
         self.actuator_motors = np.sqrt(np.clip(msg.control[:4], 0.0, None) / K_THRUST)
-        #self.u_target_traj = jnp.tile(self.actuator_motors, (horizon, 1)) 
-        #self.get_logger().info(f"self.actuator_motors {self.actuator_motors}")
+       
+    def esc_status_callback(self, msg: EscStatus):
+        rpms = [esc.esc_rpm for esc in msg.esc[:msg.esc_count]]
+        self.motor_rpms = np.clip(np.array(rpms), 0.0, MAX_SPEED)
+        #self.get_logger().info(f"self.motor_rpms: {self.motor_rpms}")
 
     def send_msg_to_client(self, msg):
         server_msg = String()
@@ -418,17 +406,6 @@ class ModelPredictiveControlNode(Node):
             # Логирование в CSV
             self.log_optimized_traj()
  
-    def odom_callback(self, msg: Odometry):
-        #self.get_logger().info("odom_callback")
-        self.odom_callback_position = [msg.pose.pose.position.x, msg.pose.pose.position.y, msg.pose.pose.position.z]
-        self.odom_callback_orientation = [msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, msg.pose.pose.orientation.z, msg.pose.pose.orientation.w]
-        #self.get_logger().info(f"odom pos {self.odom_callback_position[0]} {self.odom_callback_position[1]} {self.odom_callback_position[2]} ")
-        #self.get_logger().info(f"odom orie {self.odom_callback_orientation[0]} {self.odom_callback_orientation[1]} {self.odom_callback_orientation[2]} {self.odom_callback_orientation[3]} ")
-
-        self.new_x[0:3]=self.odom_callback_position
-        self.new_x[3:7]=self.odom_callback_orientation
-
-
     def log_optimized_traj(self):
         log_base = self.log_base
         file_path = os.path.join(log_base, 'optimized_traj_log.csv')
@@ -487,12 +464,12 @@ class ModelPredictiveControlNode(Node):
       
     def takeoff_targets(self):
         for i in range(horizon):
-            pos = jnp.array(self.odom_callback_position).copy().at[2].set(self.takeoff_altitude)
-            vel = jnp.array(self.vehicleImu_velocity_w)#jnp.zeros(3)  # TODO ACTUAL VEL
-            q = jnp.array(self.odom_callback_orientation)# jnp.array([0.0, 0.0, 0.0, 1.0]) # TODO
-            omega = jnp.array(self.angularVelocity) #jnp.zeros(3)
+            pos = jnp.array(self.measurnments[0:3]).copy().at[2].set(self.takeoff_altitude)
+            vel = jnp.array(self.measurnments[3:6]) 
+            q = jnp.array(self.measurnments[6:10]) 
+            omega = jnp.array(self.measurnments[10:12]) 
             self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
-            self.u_target_traj = self.u_target_traj.at[i].set(self.motor_inputs.copy())
+            self.u_target_traj = self.u_target_traj.at[i].set(self.motor_rpms.copy())
         self.x_target_traj = self.x_target_traj.at[horizon].set(self.x_target_traj[horizon - 1])
         
     def flip_targets(self ):
@@ -500,7 +477,7 @@ class ModelPredictiveControlNode(Node):
         roll_expected = 2 * jnp.pi * t_local / self.flip_duration
         
         # Получаем кватернион текущей ориентации
-        q_current = self.ekf.x[6:10]
+        q_current = self.measurnments[6:10]
         
         # Оценка roll из кватерниона
         self.roll_current = self.roll_from_quaternion(q_current)
@@ -534,7 +511,7 @@ class ModelPredictiveControlNode(Node):
         roll_desired = 2 * jnp.pi * (1 - t_local / self.recovery_time)
         
         # Получаем кватернион текущей ориентации
-        q_current = self.ekf.x[6:10]
+        q_current = self.measurnments[6:10]
         
         # Оценка roll из кватерниона
         self.roll_current = self.roll_from_quaternion(q_current)
@@ -564,25 +541,20 @@ class ModelPredictiveControlNode(Node):
         
     def land_targets(self ):
         return
-
-        # self.odom_callback_position = np.zeros(3, dtype=np.float32)
-        # self.odom_callback_orientation = np.zeros(4, dtype=np.float32)
+      
     def run_mpc_thread(self):
         with self.mpc_lock:
             start_time = time.time()
             self.log_ilqr(f"============= phase: {self.phase}=============")
-            try:
-                self.x0 = self.ekf.x.copy() 
-                self.u_init = jnp.tile(self.actuator_motors, (horizon, 1)) 
+            try: 
                 self.current_time = self.get_clock().now().nanoseconds * 1e-9
                 if self.phase == 'takeoff':
                     self.send_msg_to_client("mpc_on")# на всякий случай если сообщене не дойдет с одного раза,
                                                      # чтобы переключить контроллер полета на прием управления траектории
                     self.takeoff_targets()
                     
-                    self.log_ilqr(f"takeoff\n self.odom_callback_position[2]={self.odom_callback_position[2]}  self.takeoff_altitude={self.takeoff_altitude}\
-                                    self.odom_callback_position[2] - self.takeoff_altitude={self.odom_callback_position[2] - self.takeoff_altitude}")
-                    if abs(self.odom_callback_position[2] - self.takeoff_altitude) < self.takeoff_tol:
+                    self.log_ilqr(f"takeoff")
+                    if abs( - self.takeoff_altitude) < self.takeoff_tol:
                         self.phase = 'flip'
                         self.flip_started_time = self.current_time 
 
@@ -609,14 +581,14 @@ class ModelPredictiveControlNode(Node):
                 Вычисляет оптимальную траекторию состояний и управляющих воздействий
                 от текущего состояния self.x0, используя iLQR.
                 """ 
-                self.log_mpc(f"x0:{self.x0}")
-                self.log_mpc(f"u_init:{self.u_init}")
+                self.log_mpc(f"x0:{self.measurnments}")
+                self.log_mpc(f"self.motor_rpms:{self.motor_rpms}")
                 self.log_mpc(f"self.x_target_traj:{self.x_target_traj}")
                 self.log_mpc(f"self.u_target_traj:{self.u_target_traj}")
                 # Используем ILQR для расчета оптимальной траектории
                 X_opt, U_opt, i_final, cost_final = self.optimizer.solve( 
-                    x0=self.x0,
-                    u_init=self.u_init,
+                    x0=self.measurnments,
+                    u_init=self.motor_rpms,
                     Q=Q,
                     R=R,
                     Qf=Qf,
@@ -642,68 +614,22 @@ class ModelPredictiveControlNode(Node):
                 self.log_ilqr(f"[mpc_control_loop] END phase: {self.phase}, duration: {elapsed:.3f} s")
                 self.mpc_running = False
                
-             
     def mpc_control_loop(self):
         # Запуск в отдельном потоке
         if self.optimized_traj_f:
             threading.Thread(target=self.run_mpc_thread).start()
 
-    def ekf_filter_node_t(self):
-        #self.get_logger().info("ekf_filter_node_t")
-        def to_float_array(arr):
-            return [float(x) for x in arr]
-
-        imu_msg = Imu()
-        mag_msg = MagneticField()
-        baro_msg = FluidPressure()
-
-        # Стамп времени для сообщений
-        self.current_time = self.get_clock().now().to_msg()
-
-        # ======== /imu/data ========
-        imu_msg.header.stamp = self.current_time
-        imu_msg.header.frame_id = "base_link"
-
-        # Ориентация
-        q = to_float_array(self.vehicleAttitude_q)
-        imu_msg.orientation = Quaternion(x=q[0], y=q[1], z=q[2], w=q[3])
-
-        # Угловая скорость
-        ang_vel = to_float_array(self.angularVelocity)
-        imu_msg.angular_velocity = Vector3(x=ang_vel[0], y=ang_vel[1], z=ang_vel[2])
-
-        # Линейное ускорение
-        lin_acc = to_float_array(self.sensorCombined_linear_acceleration)
-        imu_msg.linear_acceleration = Vector3(x=lin_acc[0], y=lin_acc[1], z=lin_acc[2])
-
-        self.imu_pub.publish(imu_msg)
-
-        # ======== /imu/mag ========
-        mag_msg.header.stamp = self.current_time
-        mag_msg.header.frame_id = "base_link"
-        mag = to_float_array(self.magnetometer_data)
-        mag_msg.magnetic_field = Vector3(x=mag[0], y=mag[1], z=mag[2])
-        self.mag_pub.publish(mag_msg)
-
-        # ======== /baro ========
-        baro_msg.header.stamp = self.current_time
-        baro_msg.header.frame_id = "base_link"
-        baro_msg.fluid_pressure = float(self.baro_pressure)
-        self.baro_pub.publish(baro_msg)
-
     def ekf_logger(self):
-        pos_my_ekf = self.ekf.x[0:3]
-        pos_odom = self.odom_callback_position
+        pos_my_ekf = self.measurnments[0:3]
         pos_real = self.vehicleLocalPosition_position
 
-        quat_my_ekf = self.ekf.x[6:10]
+        quat_my_ekf = self.measurnments[6:10]
         px4_quat = self.vehicleAttitude_q
-        quat_odom = self.odom_callback_orientation
 
-        vel_my_ekf = self.ekf.x[3:6]
+        vel_my_ekf = self.measurnments[3:6]
         integral_vel = self.vehicleImu_velocity_w
 
-        omega_my_ekf = self.ekf.x[10:13]
+        omega_my_ekf = self.measurnments[10:13]
         omega_from_sensor = self.angularVelocity
 
         log_base = self.log_base
@@ -711,15 +637,15 @@ class ModelPredictiveControlNode(Node):
         # CSV файлы остаются прежними
         self._write_to_csv(
             os.path.join(log_base, 'pos_log.csv'),
-            ['pos_my_ekf', 'pos_odom', 'pos_real'],
-            [pos_my_ekf, pos_odom, pos_real],
-            error_pairs=[(0, 2), (1, 2)]
+            ['pos_my_ekf', 'pos_real'],
+            [pos_my_ekf, pos_real],
+            error_pairs=[(0,1)]
         )
         self._write_to_csv(
             os.path.join(log_base, 'quat_log.csv'),
-            ['quat_my_ekf', 'px4_quat', 'quat_odom'],
-            [quat_my_ekf, px4_quat, quat_odom],
-            error_pairs=[(0, 1), (2, 1)]
+            ['quat_my_ekf', 'px4_quat'],
+            [quat_my_ekf, px4_quat],
+            error_pairs=[(0, 1)]
         )
         self._write_to_csv(
             os.path.join(log_base, 'vel_log.csv'),
@@ -734,14 +660,16 @@ class ModelPredictiveControlNode(Node):
             error_pairs=[(0, 1)]
         )
 
-        # Один txt-файл только с EKF-данными
-        log_txt_path = os.path.join(log_base, 'log_all.txt')
+        # TXT-файл только с EKF-данными
+        log_txt_path = os.path.join(log_base, 'log_my_ekf.txt')
         with open(log_txt_path, 'a') as f:
             f.write('--- EKF Data ---\n')
             f.write(f'pos_my_ekf: {pos_my_ekf}\n')
+            f.write(f'pos_real: {pos_real}\n')
+            f.write(f'pos error: {abs(pos_real-pos_my_ekf)}\n')
             f.write(f'quat_my_ekf: {quat_my_ekf}\n')
             f.write(f'vel_my_ekf: {vel_my_ekf}\n')
-            f.write(f'omega_my_ekf: {omega_my_ekf}\n')
+            f.write(f'omega_my_ekf: {omega_my_ekf}\n') 
             f.write('\n')
 
     def _write_to_txt(self, file_path, labels, data, error_pairs=None):
@@ -804,7 +732,7 @@ class ModelPredictiveControlNode(Node):
         self.baro_temperature = msg.temperature
         self.baro_pressure = msg.pressure
         self.baro_altitude = 44330.0 * (1.0 - (msg.pressure / SEA_LEVEL_PRESSURE) ** 0.1903)
-        self.ekf.x[2] = -self.baro_altitude
+        self.measurnments[2] = -self.baro_altitude
         #self.get_logger().info(f"self.baro_altitude = {self.baro_altitude}") # Все верно
 
     def get_yaw_from_mag(self):
@@ -840,9 +768,9 @@ class ModelPredictiveControlNode(Node):
     def angular_velocity_callback(self, msg: VehicleAngularVelocity):
         self.angularVelocity = np.array(msg.xyz, dtype=np.float32)
         self.angularVelocity_angular_acceleration = np.array(msg.xyz_derivative, dtype=np.float32)
-        self.new_x[10:13] = self.angularVelocity
+        #self.new_x[10:13] = self.angularVelocity
         # хорошая
-        self.get_logger().info(f"self.angularVelocity {self.angularVelocity[0]} {self.angularVelocity[1]} {self.angularVelocity[2]}")
+        #self.get_logger().info(f"self.angularVelocity {self.angularVelocity[0]} {self.angularVelocity[1]} {self.angularVelocity[2]}")
 
     def vehicle_attitude_callback(self, msg: VehicleAttitude):
         # In this system we use scipy format for quaternion. 
@@ -863,15 +791,8 @@ class ModelPredictiveControlNode(Node):
             delta_velocity_world += gravity * delta_velocity_dt
             self.vehicleImu_velocity_w += delta_velocity_world
             self.position += self.vehicleImu_velocity_w * delta_velocity_dt
-
-            self.new_x[7:10]=self.vehicleImu_velocity_w
             
-            # скорость плохая, зашумленная 
-            #self.get_logger().info(f"self.vehicleImu_velocity_w {self.vehicleImu_velocity_w[0]} {self.vehicleImu_velocity_w[1]} {self.vehicleImu_velocity_w[2]}")
-           
-            # Позиция постоянно растет оч плохо
-            #self.get_logger().info(f"IMU position {self.position[0]} {self.position[1]} {self.position[2]}")
-
+ 
     def publish_motor_inputs(self):
         msg = Float32MultiArray()
         msg.data = self.motor_inputs.tolist()
@@ -881,48 +802,25 @@ class ModelPredictiveControlNode(Node):
         log_file = os.path.join(self.log_base, 'ekf_measurements_log.txt')
         os.makedirs(os.path.dirname(log_file), exist_ok=True)
 
-        z = [
-            self.position[0],              # x
-            self.position[1],              # y
-            self.vehicleImu_velocity_w[0],             # vx
-            self.vehicleImu_velocity_w[1],             # vy
-            self.vehicleImu_velocity_w[2],             # vz
-            self.vehicleAttitude_q[0],     # qw
-            self.vehicleAttitude_q[1],     # qx
-            self.vehicleAttitude_q[2],     # qy
-            self.vehicleAttitude_q[3],     # qz
-            self.angularVelocity[0],       # wx
-            self.angularVelocity[1],       # wy
-            self.angularVelocity[2],       # wz
-            self.baro_altitude             # barometric altitude
-        ]
-
         labels = [
-            'x', 'y',
+            'x', 'y', 'z',
             'vx', 'vy', 'vz',
             'qw', 'qx', 'qy', 'qz',
-            'wx', 'wy', 'wz',
-            'baro_alt'
+            'wx', 'wy', 'wz'
         ]
-
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
-
         with open(log_file, mode='a') as f:
             f.write(f"[{timestamp}] ")
-            for label, val in zip(labels, z):
+            for label, val in zip(labels, self.z):
                 f.write(f"{label}={val:.6f} ")
             f.write("\n")
 
     def EKF(self):
-        #self.get_logger().info("EKF")
         """ Основная функция обновления фильтра Калмана. """
-         
-#           self.odom_callback_position = np.zeros(3, dtype=np.float32)
-#         self.odom_callback_orientation = np.zeros(4, dtype=np.float32)
-        # Вектор измерений без z, но с баро
-        z = np.array([
-            self.position[0],  # x
-            self.position[1],  # y
+        self.z = np.array([
+            self.position[0],    # x
+            self.position[1],    # y
+            -self.baro_altitude, # высота по барометру TODO  BARO IS NEG
             self.vehicleImu_velocity_w[0],      # vx
             self.vehicleImu_velocity_w[1],      # vy
             self.vehicleImu_velocity_w[2],      # vz
@@ -932,72 +830,24 @@ class ModelPredictiveControlNode(Node):
             self.vehicleAttitude_q[3],  # qz
             self.angularVelocity[0],   # wx
             self.angularVelocity[1],   # wy
-            self.angularVelocity[2],   # wz
-            -self.baro_altitude         # высота по барометру
+            self.angularVelocity[2]    # wz 
         ])
-
-        self.ekf.x = self.ekf.predict_x(self.motor_inputs)
-        self.ekf.update(z, HJacobian=self.HJacobian, Hx=self.hx)
+        self.measurnments = self.z.copy()
+        #self.ekf.x = self.ekf.predict_x(self.motor_rpms)
+        #self.ekf.update(z, HJacobian=self.HJacobian, Hx=self.hx) 
+        # LOG RESULTS
         self.ekf_logger()
-
         self.log_ekf_measurements_txt()
 
-
-        self.get_logger().info(f"motor_inputs {self.motor_inputs}")
-
-        measurnments = [
-            self.position[0],              # x
-            self.position[1],              # y
-            self.baro_altitude,            # barometric altitude              
-            self.vehicleImu_velocity_w[0], # vx
-            self.vehicleImu_velocity_w[1], # vy
-            self.vehicleImu_velocity_w[2], # vz
-            self.vehicleAttitude_q[0],     # qw
-            self.vehicleAttitude_q[1],     # qx
-            self.vehicleAttitude_q[2],     # qy
-            self.vehicleAttitude_q[3],     # qz
-            self.angularVelocity[0],       # wx
-            self.angularVelocity[1],       # wy
-            self.angularVelocity[2],       # wz
-                         
-        ]
-
-        x_next = f_numpy(x=np.array(measurnments, dtype=np.float32), u=np.array(self.motor_inputs, dtype=np.float32), dt=dt)
-
-        # # Красиво форматируем вывод
-        # pos = x_next[0:3]
-        # vel = x_next[3:6]
-        # quat = x_next[6:10]
-        # omega = x_next[10:13]
-
-        # self.get_logger().info(
-        #     f"--- dynamic model state (f_numpy) ---\n"
-        #     f"pos: {pos}\n"
-        #     f"vel: {vel}\n"
-        #     f"quat: {quat}\n"
-        #     f"omega: {omega}"
-        # )
-
-        # Красиво форматируем вывод
-        pos = self.new_x[0:3]
-        vel = self.new_x[3:6]
-        quat = self.new_x[6:10]
-        omega = self.new_x[10:13]
-
-        # self.get_logger().info(
-        #     f"--- self.new_x ---\n"
-        #     f"pos: {pos}\n"
-        #     f"vel: {vel}\n"
-        #     f"quat: {quat}\n"
-        #     f"omega: {omega}"
-        # ) 
-        #self.get_logger().info(f"self.ekf.x line velocity {self.ekf.x[3]} {self.ekf.x[4]} {self.ekf.x[5]}")
-
+        # Проверка выхода динамической модели
+        x_next = f_numpy(x=self.z, u=np.array(self.motor_rpms, dtype=np.float32), dt=dt)
+  
     def hx(self, x):
         """ Модель измерений: что бы показали датчики при текущем состоянии. """
         return np.array([
             x[0],  # x
             x[1],  # y
+            x[2], # baro z
             x[3],  # vx
             x[4],  # vy
             x[5],  # vz
@@ -1007,8 +857,7 @@ class ModelPredictiveControlNode(Node):
             x[9],  # qz
             x[10], # wx
             x[11], # wy
-            x[12], # wz
-            x[2],  # z — используется только как барометрическая высота
+            x[12] # wz 
         ])
 
     def HJacobian(self, x):
