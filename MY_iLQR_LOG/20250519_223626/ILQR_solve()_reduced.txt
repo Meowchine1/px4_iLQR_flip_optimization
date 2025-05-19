@@ -1,0 +1,6 @@
+[+1018.1ms] start solve x_target_traj.shape (11, 13)
+[+8765.5ms] end solve X.shape=(11, 13)
+[+8991.8ms] start solve x_target_traj.shape (11, 13)
+[+9042.4ms] end solve X.shape=(11, 13)
+[+9192.1ms] start solve x_target_traj.shape (11, 13)
+[+9203.3ms] end solve X.shape=(11, 13)

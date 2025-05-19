@@ -682,9 +682,11 @@ class ModelPredictiveControlNode(Node):
             f.write(f'pos_my_ekf: {pos_my_ekf}\n')
             f.write(f'pos_real: {pos_real}\n')
             f.write(f'pos error: {abs(pos_real-pos_my_ekf)}\n')
-            f.write(f'quat_my_ekf: {quat_my_ekf}\n')
+            f.write(f'quat_my_ekf: {quat_my_ekf}\n') 
+            f.write(f'px4_quat: {px4_quat}\n')
             f.write(f'vel_my_ekf: {vel_my_ekf}\n')
             f.write(f'omega_my_ekf: {omega_my_ekf}\n') 
+            f.write(f'omega_from_sensor: {omega_from_sensor}\n')
             f.write('\n')
 
     def _write_to_txt(self, file_path, labels, data, error_pairs=None):
@@ -802,7 +804,7 @@ class ModelPredictiveControlNode(Node):
         if delta_velocity_dt > 0.0:
             rotation = Rot.from_quat(self.vehicleAttitude_q)
             delta_velocity_world = rotation.apply(delta_velocity)
-            gravity = np.array([0.0, 0.0, 9.80665], dtype=np.float32)
+            gravity = np.array([0.0, 0.0, -9.80665], dtype=np.float32)
             delta_velocity_world += gravity * delta_velocity_dt
             self.vehicleImu_velocity_w += delta_velocity_world
             self.position += self.vehicleImu_velocity_w * delta_velocity_dt

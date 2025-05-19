@@ -1,0 +1,37 @@
+[+5.1ms] ======= i=0=======
+cost_function_traj_flip start
+[+494.5ms] cost_function_traj_flip end
+backward_pass start
+[+6711.3ms] backward_pass end
+forward_pass start
+[+1173.9ms] forward_pass end
+cost_function_traj_flip start
+[+0.6ms] cost_function_traj_flip end
+[+67.3ms] ======= i=1=======
+cost_function_traj_flip start
+[+0.8ms] cost_function_traj_flip end
+backward_pass start
+[+0.6ms] backward_pass end
+forward_pass start
+[+0.3ms] forward_pass end
+cost_function_traj_flip start
+[+0.2ms] cost_function_traj_flip end
+[+1.2ms] ======= i=2=======
+cost_function_traj_flip start
+[+0.3ms] cost_function_traj_flip end
+backward_pass start
+[+0.4ms] backward_pass end
+forward_pass start
+[+0.3ms] forward_pass end
+cost_function_traj_flip start
+[+0.2ms] cost_function_traj_flip end
+[+1.4ms] ======= i=3=======
+cost_function_traj_flip start
+[+0.3ms] cost_function_traj_flip end
+backward_pass start
+[+0.4ms] backward_pass end
+forward_pass start
+[+0.3ms] forward_pass end
+cost_function_traj_flip start
+[+0.2ms] cost_function_traj_flip end
+[+1.5ms] ************end solve*************

@@ -1,0 +1,12 @@
+============= phase: takeoff=============
+====== self.motor_rpms.shape (4,) ======
+====== self.motor_rpms.shape (4,) ======
+====== self.motor_rpms.shape (4,) ======
+====== self.motor_rpms.shape (4,) ======
+====== self.motor_rpms.shape (4,) ======
+====== self.motor_rpms.shape (4,) ======
+====== self.motor_rpms.shape (4,) ======
+====== self.motor_rpms.shape (4,) ======
+====== self.motor_rpms.shape (4,) ======
+====== self.motor_rpms.shape (4,) ======
+takeoff
