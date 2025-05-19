@@ -259,8 +259,8 @@ class ModelPredictiveControlNode(Node):
         '/fmu/out/vehicle_angular_acceleration_setpoint', self.vehicle_angular_acceleration_setpoint_callback, qos_profile)
         self.create_subscription(VehicleImu,'/fmu/out/vehicle_imu',self.vehicle_imu_callback, qos_profile)
 
-        self.create_subscription(ActuatorOutputs, '/fmu/out/actuator_outputs', self.actuator_outputs_callback, qos_profile)
-        self.create_subscription(ActuatorMotors, '/fmu/out/actuator_motors', self.actuator_motors_callback, qos_profile) 
+        #self.create_subscription(ActuatorOutputs, '/fmu/out/actuator_outputs', self.actuator_outputs_callback, qos_profile)
+        #self.create_subscription(ActuatorMotors, '/fmu/out/actuator_motors', self.actuator_motors_callback, qos_profile) 
         
         # ****** RPM *******
         self.create_subscription(EscStatus, '/fmu/out/esc_status', self.esc_status_callback, qos_profile)
@@ -274,14 +274,15 @@ class ModelPredictiveControlNode(Node):
         self.vehicleImu_velocity_w = np.zeros(3, dtype=np.float32) # в мировых координатах 
         self.sensorCombined_linear_acceleration = np.zeros(3, dtype=np.float32)
         self.position = np.zeros(3, dtype=np.float32) # drone position estimates with IMU localization
-        self.motor_inputs = np.zeros(4, dtype=np.float32)  #приближение в радианах
-        self.motor_rpms = np.zeros(4) # rpm from px4 topic
+        #self.motor_inputs = np.zeros(4, dtype=np.float32)  #приближение в радианах
+        #self.motor_rpms = np.zeros(4) # rpm from px4 topic
+        self.motor_rpms = jnp.zeros(4)
         self.vehicleAttitude_q = np.array([0.0, 0.0, 0.0, 1.0], dtype=np.float32) # quaternion from topic
         self.magnetometer_data = np.zeros(3, dtype=np.float32)
         self.baro_pressure = 0.0
         self.baro_altitude = 0.0
         self.mag_yaw = 0.0
-        self.actuator_motors = np.zeros(4)
+        #self.actuator_motors = np.zeros(4)
         
         # FOR SITL TESTING  
         self.vehicleLocalPosition_position = np.zeros(3, dtype=np.float32)
@@ -363,13 +364,13 @@ class ModelPredictiveControlNode(Node):
         self.u_target_traj = jnp.tile(self.motor_rpms, (horizon, 1))
         self.current_time = self.get_clock().now().nanoseconds * 1e-9
                 
-    def actuator_outputs_callback(self, msg: ActuatorOutputs):# TODO SHOULDNOT USE IT
-        pwm_outputs = msg.output[:4]  # предполагаем, что 0-3 — это моторы
-        # преобразование PWM в радианы в секунду (линейное приближение)
-        self.motor_inputs = np.clip((np.array(pwm_outputs) - 1000.0) / 1000.0 * MAX_SPEED, 0.0, MAX_SPEED)
+    # def actuator_outputs_callback(self, msg: ActuatorOutputs):# TODO SHOULDNOT USE IT
+    #     pwm_outputs = msg.output[:4]  # предполагаем, что 0-3 — это моторы
+    #     # преобразование PWM в радианы в секунду (линейное приближение)
+    #     self.motor_inputs = np.clip((np.array(pwm_outputs) - 1000.0) / 1000.0 * MAX_SPEED, 0.0, MAX_SPEED)
        
-    def actuator_motors_callback(self, msg: ActuatorMotors):# TODO SHOULDNOT USE IT
-        self.actuator_motors = np.sqrt(np.clip(msg.control[:4], 0.0, None) / K_THRUST)
+    # def actuator_motors_callback(self, msg: ActuatorMotors):# TODO SHOULDNOT USE IT
+    #     self.actuator_motors = np.sqrt(np.clip(msg.control[:4], 0.0, None) / K_THRUST)
        
     def esc_status_callback(self, msg: EscStatus):
         rpms = [esc.esc_rpm for esc in msg.esc[:msg.esc_count]]
@@ -409,6 +410,7 @@ class ModelPredictiveControlNode(Node):
     def log_optimized_traj(self):
         log_base = self.log_base
         file_path = os.path.join(log_base, 'optimized_traj_log.csv')
+        text_log_path = os.path.join(log_base, 'optimized_traj_log.txt')
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
         X_flat = np.asarray(self.X_opt[0]).flatten()
@@ -419,8 +421,8 @@ class ModelPredictiveControlNode(Node):
         data = [X_flat, u_flat, i_final, cost_final]
         labels = ['X_opt', 'u_opt', 'i_final', 'cost_final']
 
+        # --- Логирование CSV ---
         new_file = not os.path.exists(file_path)
-
         if new_file:
             headers = []
             for label, arr in zip(labels, data):
@@ -434,10 +436,18 @@ class ModelPredictiveControlNode(Node):
                 writer.writerow(headers)
 
         row_values = [float(v) for arr in data for v in arr]
-
         with open(file_path, mode='a', newline='') as f:
             writer = csv.writer(f)
             writer.writerow(row_values)
+
+        # --- Логирование в текстовый файл ---
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with open(text_log_path, 'a') as f:
+            f.write(f"=== Log time: {timestamp} ===\n")
+            f.write(f"Final iteration: {self.i_final}\n")
+            f.write(f"Final cost: {self.cost_final}\n")
+            f.write(f"X_opt (first 10 values): {X_flat[:10]}\n")
+            f.write(f"u_opt (first 10 values): {u_flat[:10]}\n\n")
  
     def quaternion_from_roll(self, roll_rad):
         r = R.from_euler('x', roll_rad)
@@ -467,8 +477,9 @@ class ModelPredictiveControlNode(Node):
             pos = jnp.array(self.measurnments[0:3]).copy().at[2].set(self.takeoff_altitude)
             vel = jnp.array(self.measurnments[3:6]) 
             q = jnp.array(self.measurnments[6:10]) 
-            omega = jnp.array(self.measurnments[10:12]) 
+            omega = jnp.array(self.measurnments[10:13]) 
             self.x_target_traj = self.x_target_traj.at[i].set(jnp.concatenate([pos, vel, q, omega]))
+            self.log_ilqr(f"====== self.motor_rpms.shape {self.motor_rpms.shape} ======")
             self.u_target_traj = self.u_target_traj.at[i].set(self.motor_rpms.copy())
         self.x_target_traj = self.x_target_traj.at[horizon].set(self.x_target_traj[horizon - 1])
         
@@ -586,9 +597,13 @@ class ModelPredictiveControlNode(Node):
                 self.log_mpc(f"self.x_target_traj:{self.x_target_traj}")
                 self.log_mpc(f"self.u_target_traj:{self.u_target_traj}")
                 # Используем ILQR для расчета оптимальной траектории
+
+
+                measurnments_init = self.measurnments  # (13,)
+                motor_rpms_init = jnp.tile(self.motor_rpms, (horizon, 1))  # (horizon, 4)
                 X_opt, U_opt, i_final, cost_final = self.optimizer.solve( 
-                    x0=self.measurnments,
-                    u_init=self.motor_rpms,
+                    x0=measurnments_init,
+                    u_init=motor_rpms_init,
                     Q=Q,
                     R=R,
                     Qf=Qf,
@@ -601,7 +616,7 @@ class ModelPredictiveControlNode(Node):
                 self.i_final = i_final
                 self.cost_final = float(cost_final)   # Обеспечиваем float, а не jnp.scalar
 
-                #self.send_optimized_traj()
+                self.send_optimized_traj()
                     
             except Exception as e:
                 self.log_ilqr(f"Ошибка при выполнении MPC: {str(e)}")

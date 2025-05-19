@@ -7,7 +7,7 @@ from std_msgs.msg import Float32
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 from px4_msgs.msg import (  OffboardControlMode, TrajectorySetpoint, 
     VehicleStatus,
-    VehicleRatesSetpoint, VehicleTorqueSetpoint, VehicleAttitudeSetpoint, VehicleCommand, ActuatorMotors
+    VehicleRatesSetpoint, VehicleTorqueSetpoint, VehicleAttitudeSetpoint, VehicleCommand, ActuatorMotors 
 )
 import numpy as np
 from enum import Enum 
@@ -27,7 +27,7 @@ ACCELERATE_TIME = 0.07
 BRAKE_TIME = ACCELERATE_TIME
 ARM_TIMEOUT = 5.0
 OFFBOARD_TIMEOUT = 5.0
- 
+OFFBOARD_MODE = 14  # код режима OFFBOARD в PX4
 class DroneState(Enum):
     INIT = 7
     DISARMED = 0
@@ -72,7 +72,7 @@ class PIDController:
 
         return output
 
-    def get_rotate_pwm(self, target_rpm: float, current_rpm: float) -> float:
+    def get_rotate_pwm(self, target_rpm, current_rpm):
         """
         Возвращает значение PWM на основе текущих и целевых RPM с использованием PID-регулятора.
 
@@ -113,11 +113,12 @@ class FlipControlNode(Node):
         self.nav_state = 0 
         self.vehicle_status = VehicleStatus() 
         self.stage_time = time.time()
-        self.offboard_is_active = False 
+        self.offboard_is_active = False
+        self.offboard_state = False
          
         self.create_timer(0.1, self.update)
         self.create_timer(0.1, self.offboard_heartbeat)
-        self.create_timer(0.1, self.drone_managenment)
+        #self.create_timer(0.1, self.drone_managenment)
         #self.create_timer(0.01, self.flip_thrust_max) 
         #self.create_timer(0.001, self.flip_thrust_recovery) 
         #self.create_timer(0.0001, self.flip_pitch_t)
@@ -125,8 +126,7 @@ class FlipControlNode(Node):
         self.flip_thrust_max_f = False
         self.flip_thrust_recovery_f = False
         self.flip_pitch_f = False
-
-
+ 
         # ****** RPM *******
         self.create_subscription(EscStatus, '/fmu/out/esc_status', self.esc_status_callback, qos_profile)
         # MPC INTEGRATION API
@@ -144,9 +144,9 @@ class FlipControlNode(Node):
         self.mpc_takeoff = False 
         self.drone_managenment_f = False
         self.rpm_to_pwm_pid = PIDController(Kp=1.0, Ki=0.1, Kd=0.01)
-        self.target_pwm = np.zeros(4)
-        self.target_rpm = np.zeros(4)
-        self.motor_rpms = np.zeros(4)
+        self.target_pwm = np.zeros(4, dtype=int)
+        self.target_rpm = np.zeros(4, dtype=int)
+        self.motor_rpms = np.zeros(4, dtype=int)
 
 
         self.master = mavutil.mavlink_connection('udp:127.0.0.1:14550')
@@ -167,8 +167,20 @@ class FlipControlNode(Node):
 
     def send_pwm_loop(self):
         # Значения PWM на каналы (обычно 1 — roll, 2 — pitch, 3 — throttle, 4 — yaw)
-        
-        if rclpy.ok():
+        #self.get_logger().info(f"self.drone_managenment_f: {self.drone_managenment_f}  self.main_state {self.main_state}")
+        if rclpy.ok() and self.drone_managenment_f:
+
+            self.master.mav.command_long_send(
+                self.master.target_system,
+                self.master.target_component,
+                mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
+                0,
+                1, 0, 0, 0, 0, 0, 0)  # Армирование дрона
+            self.master.mav.set_mode_send(
+                self.master.target_system,
+                mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
+                VehicleStatus.NAVIGATION_STATE_OFFBOARD)  # где PX4_OFFBOARD_MODE_ID — числовой ID режима offboard
+
             # Отправка RC override: 8 каналов, остальным — 0xffff (игнорировать)
             self.master.mav.rc_channels_override_send(
                 self.master.target_system,
@@ -179,19 +191,31 @@ class FlipControlNode(Node):
             self.get_logger().info(f"Sent PWM override: {self.target_pwm}")
              
  
+    def rpm_to_pwm(self,rpm, rpm_min=0, rpm_max=10000, pwm_min=1000, pwm_max=2000):
+        rpm = max(min(rpm, rpm_max), rpm_min)
+        pwm = pwm_min + (rpm - rpm_min) * (pwm_max - pwm_min) / (rpm_max - rpm_min)
+        return int(pwm)
+
     def esc_status_callback(self, msg: EscStatus):
         rpms = [esc.esc_rpm for esc in msg.esc[:msg.esc_count]]
         self.motor_rpms = np.array(rpms)
-        #self.get_logger().info(f"self.motor_rpms: {self.motor_rpms}")
+        self.get_logger().info(f"self.motor_rpms: {self.motor_rpms}")
+
+        pwms = [self.rpm_to_pwm(rpm) for rpm in self.motor_rpms]
+        self.get_logger().info(f"Estimated PWM: {pwms}")
+
+  
 
     def get_pwm(self):
-        # получаем требуемое значение Rotate_pwm для корректировки оборотов
-        self.target_pwm = self.rpm_to_pwm_pid.get_rotate_pwm(self.motor_rpms, self.target_rpm, self.rpm_to_pwm_pid)
-        self.get_logger().info(f'Требуемое значение Rotate_pwm: {self.Rotate_pwm}')
+        self.target_pwm = [
+            int(self.rpm_to_pwm_pid.get_rotate_pwm(self.target_rpm[i], self.motor_rpms[i]))
+            for i in range(4)
+        ]
+        self.get_logger().info(f'self.target_rpm: {self.target_rpm}')
       
-    def drone_managenment(self):
-        if self.drone_managenment_f:
-            self.send_motor_commands()
+    # def drone_managenment(self):
+    #     if self.drone_managenment_f:
+    #         #self.send_motor_commands()
          
     def optimized_traj_callback(self, msg: OptimizedTraj):
         self.received_x_opt = np.array(msg.x_opt, dtype=np.float32)
@@ -201,7 +225,7 @@ class FlipControlNode(Node):
         self.received_i_final = msg.i_final
         self.received_cost_final = msg.cost_final
         self.received_done = msg.done
-        self.get_logger().info(f'px4 OptimizedTraj: {msg}') 
+        #self.get_logger().info(f'px4 OptimizedTraj: {msg}') 
 
     def send_message_to_server(self, msg):#
         ros_msg = String()
@@ -210,11 +234,12 @@ class FlipControlNode(Node):
         #self.get_logger().info(f'Sent to MPC: {msg}')
 
     def server_msg_callback(self, msg):
-        #self.get_logger().info(f'server_msg_callback: {msg}')
-        if msg =="land":
+        data = msg.data
+        #self.get_logger().info(f'server_msg_callback: {data}')
+        if data =='land':
             self.main_state == DroneState.LANDING
             self.drone_managenment_f = False
-        elif msg =="mpc_on":
+        elif data =='mpc_on':
             self.main_state = DroneState.MPC_MANAGEMENT
             self.drone_managenment_f = True 
         
@@ -223,6 +248,12 @@ class FlipControlNode(Node):
         #self.get_logger().info('vehicle_status_callback')
         self.vehicle_status = msg
         self.arming_state = msg.arming_state
+        
+        if msg.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
+            self.offboard_state = True
+        else:
+            self.offboard_state = False
+            self.get_logger().info(f"Текущий режим: {msg.nav_state}")
     
 # MOTOR MANAGEMENT
     def send_motor_commands(self):
@@ -358,7 +389,9 @@ class FlipControlNode(Node):
                 self.main_state = DroneState.ARMED 
          
         elif self.main_state == DroneState.ARMED:
-            self.send_message_to_server("takeoff")#
+            # if self.offboard_state:
+            #     self.send_message_to_server("takeoff")#
+            
             self.send_takeoff_commanad(5.0)
 
         # elif self.main_state == DroneState.MPC_MANAGEMENT:
