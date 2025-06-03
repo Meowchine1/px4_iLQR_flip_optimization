@@ -198,22 +198,21 @@ def f(x, u, dt):
     )
 
     R_bw = quat_to_rot_matrix(quat)
-
     rpm = jnp.clip(u, 0.0, max_speed)
     w_squared = rpm ** 2
     thrusts = kf * w_squared
 
     Fz_body = jnp.array([0.0, 0.0, jnp.sum(thrusts)])
     F_world = R_bw @ Fz_body - m * g - drag * vel
-    acc = F_world / m
 
+    acc = F_world / m
     new_vel = vel + acc * dt
     new_pos = pos + vel * dt + 0.5 * acc * dt ** 2
 
     tau = jnp.array([
-        arm * (thrusts[1] - thrusts[3]),
-        arm * (thrusts[2] - thrusts[0]),
-        km * (w_squared[0] - w_squared[1] + w_squared[2] - w_squared[3])
+        arm * (thrusts[1] - thrusts[3]), # Roll: правый - левый
+        arm * (thrusts[2] - thrusts[0]), # Pitch: задний - передний
+        km * (w_squared[0] - w_squared[1] + w_squared[2] - w_squared[3]) # Yaw
     ])
 
     omega_cross = jnp.cross(omega, I @ omega)
@@ -227,6 +226,30 @@ def f(x, u, dt):
 
     x_next = jnp.concatenate([new_pos, new_vel, new_quat, new_omega])
     return x_next
+
+# миксер rpm --> [roll_cmd, pitch_cmd, yaw_cmd, thrust_cmd]
+def rpm_to_control(rpm, arm, kf, km):
+    w_squared = rpm ** 2
+    thrusts = kf * w_squared
+
+    # Общая тяга
+    thrust = jnp.sum(thrusts)
+
+    # Моменты по осям
+    roll_torque  = arm * (thrusts[1] - thrusts[3])   # M2 - M4
+    pitch_torque = arm * (thrusts[2] - thrusts[0])   # M3 - M1
+    yaw_torque   = km * (w_squared[0] - w_squared[1] + w_squared[2] - w_squared[3])
+
+    # Вернуть управляющие воздействия
+    return jnp.array([roll_torque, pitch_torque, yaw_torque, thrust])
+
+def rpm_to_control_normalized(rpm, arm, kf, km, max_thrust, max_torque):
+    control = rpm_to_control(rpm, arm, kf, km)
+    roll_cmd   = control[0] / max_torque
+    pitch_cmd  = control[1] / max_torque
+    yaw_cmd    = control[2] / max_torque
+    thrust_cmd = control[3] / max_thrust
+    return jnp.array([roll_cmd, pitch_cmd, yaw_cmd, thrust_cmd])
 
 class MyEKF(ExtendedKalmanFilter):
     def __init__(self, dim_x, dim_z): 
@@ -306,7 +329,7 @@ class ModelPredictiveControlNode(Node):
         #self.ekf.P *= 0.1
 
         # Процессный шум
-        #self.ekf.Q = np.diag([
+        # self.ekf.Q = np.diag([
         #     0.001, 0.001, 0.001,         # x, y, z
         #     0.01, 0.01, 0.01,            # vx, vy, vz
         #     0.0001, 0.0001, 0.0001, 0.0001,  # qw, qx, qy, qz
@@ -344,7 +367,7 @@ class ModelPredictiveControlNode(Node):
          # ======= TIMERS =======
         #self.timer = self.create_timer(0.01, self.step_dynamics)
         self.EKF_timer = self.create_timer(EKF_DT, self.EKF)  
-        self.mpc_controller = self.create_timer(0.01, self.mpc_control_loop)
+        self.mpc_controller = self.create_timer(0.05, self.mpc_control_loop)
          
         # == == == =CLIENT SERVER INTERACTION= == == == 
         self.create_subscription(String, '/drone/client_msg', self.client_msg_callback, qos_profile)#
@@ -375,7 +398,7 @@ class ModelPredictiveControlNode(Node):
     def esc_status_callback(self, msg: EscStatus):
         rpms = [esc.esc_rpm for esc in msg.esc[:msg.esc_count]]
         self.motor_rpms = np.clip(np.array(rpms), 0.0, MAX_SPEED)
-        #self.get_logger().info(f"self.motor_rpms: {self.motor_rpms}")
+        #self.get_logger().info(f"dyn esc_status_callback self.motor_rpms: {self.motor_rpms}")
 
     def send_msg_to_client(self, msg):
         server_msg = String()

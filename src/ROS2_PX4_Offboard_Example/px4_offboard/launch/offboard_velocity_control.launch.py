@@ -62,14 +62,7 @@ def generate_launch_description():
             name='processes',
             prefix='gnome-terminal --'
         ),
-        
-        Node(
-            package='px4_offboard',
-            namespace='px4_offboard',
-            executable='px4_interaction',
-            name='px4_interaction', 
-        ),
-
+         
         Node(
             package='px4_offboard',
             namespace='px4_offboard',
@@ -84,7 +77,12 @@ def generate_launch_description():
             name='rviz2',
             arguments=['-d', [os.path.join(package_dir, 'visualize.rviz')]]
         ),
-
+        Node(
+            package='px4_offboard',
+            namespace='px4_offboard',
+            executable='px4_interaction',
+            name='px4_interaction', 
+        ),
         Node(
             package='robot_localization',
             executable='ekf_node',
@@ -100,3 +98,4 @@ def generate_launch_description():
         #     parameters=['config/ekf.yaml']
         # )
     ])
+

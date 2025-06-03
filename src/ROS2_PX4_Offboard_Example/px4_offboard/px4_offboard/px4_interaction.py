@@ -6,8 +6,8 @@ from scipy.spatial.transform import Rotation as R
 from std_msgs.msg import Float32
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 from px4_msgs.msg import (  OffboardControlMode, TrajectorySetpoint, 
-    VehicleStatus,
-    VehicleRatesSetpoint, VehicleTorqueSetpoint, VehicleAttitudeSetpoint, VehicleCommand, ActuatorMotors 
+    VehicleStatus, VehicleRatesSetpoint, VehicleCommand,  
+    VehicleAttitudeSetpoint, VehicleThrustSetpoint, VehicleTorqueSetpoint, ActuatorMotors
 )
 import numpy as np
 from enum import Enum 
@@ -19,8 +19,9 @@ from quad_flip_msgs.msg import OptimizedTraj
 from pymavlink import mavutil
 import threading
 
-
+from pymavlink.quaternion import QuaternionBase
 from px4_msgs.msg import  EscStatus 
+import math
 
 BOUNCE_TIME = 0.6
 ACCELERATE_TIME = 0.07
@@ -44,6 +45,7 @@ class DroneState(Enum):
 horizon = 50 # Горизонт предсказания
 n = 13  # Размерность состояния квадрокоптера (позиция, скорость, ориентация, угловая скорость)
 m = 4  # Размерность управления (4 мотора)
+ 
 
 class PIDController:
     def __init__(self, Kp: float, Ki: float, Kd: float) -> None:
@@ -96,46 +98,34 @@ class FlipControlNode(Node):
             depth=10
         ) 
         self.vehicle_command_publisher = self.create_publisher(VehicleCommand, '/fmu/in/vehicle_command', qos_profile)
-        self.offboard_control_mode_publisher = self.create_publisher(OffboardControlMode, '/fmu/in/offboard_control_mode', qos_profile)
-        self.trajectory_setpoint_publisher = self.create_publisher(TrajectorySetpoint, '/fmu/in/trajectory_setpoint', qos_profile)
+        self.offboard_control_mode_publisher = self.create_publisher(OffboardControlMode, '/fmu/in/offboard_control_mode', qos_profile) 
         self.vehicle_rates_publisher = self.create_publisher(VehicleRatesSetpoint, '/fmu/in/vehicle_rates_setpoint', qos_profile)
-        self.vehicle_torque_publisher = self.create_publisher(VehicleTorqueSetpoint, '/fmu/in/vehicle_torque_setpoint', qos_profile)
-        self.publisher_rates = self.create_publisher(VehicleRatesSetpoint, '/fmu/in/vehicle_rates_setpoint', qos_profile)
-        self.publisher_att = self.create_publisher(VehicleAttitudeSetpoint, '/fmu/in/vehicle_attitude_setpoint', qos_profile)
-        self.publisher_actuator_motors = self.create_publisher(ActuatorMotors, '/fmu/in/actuator_motors', qos_profile)
-        '/fmu/in/actuator_controls0'
+        
+        self.attitude_pub = self.create_publisher(VehicleAttitudeSetpoint, '/fmu/in/vehicle_attitude_setpoint', qos_profile)
+        self.thrust_pub = self.create_publisher(VehicleThrustSetpoint, '/fmu/in/vehicle_thrust_setpoint', qos_profile)
+        self.torque_pub = self.create_publisher(VehicleTorqueSetpoint, '/fmu/in/vehicle_torque_setpoint', qos_profile)
+        self.motors_pub = self.create_publisher(ActuatorMotors, '/fmu/in/actuator_motors', qos_profile)
  
+       # MPC INTEGRATION API
+        self.pub_to_mpc = self.create_publisher(String, '/drone/client_msg', qos_profile)#
+        self.create_subscription(OptimizedTraj, '/drone/optimized_traj', self.optimized_traj_callback, qos_profile)
+        self.create_subscription(String, '/drone/server_msg', self.server_msg_callback, qos_profile)
+
         self.create_subscription(VehicleStatus, '/fmu/out/vehicle_status', self.vehicle_status_callback, qos_profile)
-       
+         # ****** RPM *******
+        self.create_subscription(EscStatus, '/fmu/out/esc_status', self.esc_status_callback, qos_profile)
+
         # == == == =STATE CONTROL= == == == 
         self.main_state = DroneState.INIT
         
         # == == == =PX4 STATES= == == == 
         self.arming_state = 0 
         self.nav_state = 0 
-        self.vehicle_status = VehicleStatus() 
+        self.vehicle_status = VehicleStatus()
         self.stage_time = time.time()
         self.offboard_is_active = False
-        self.offboard_state = False
-         
-        self.create_timer(0.1, self.update)
-        self.create_timer(0.1, self.offboard_heartbeat)
-        self.create_timer(0.1, self.drone_managenment)
-        #self.create_timer(0.01, self.flip_thrust_max) 
-        #self.create_timer(0.001, self.flip_thrust_recovery) 
-        #self.create_timer(0.0001, self.flip_pitch_t)
-        # == == == =Timer flags == == == =
-        self.flip_thrust_max_f = False
-        self.flip_thrust_recovery_f = False
-        self.flip_pitch_f = False
- 
-        # ****** RPM *******
-        self.create_subscription(EscStatus, '/fmu/out/esc_status', self.esc_status_callback, qos_profile)
-        # MPC INTEGRATION API
-        self.pub_to_mpc = self.create_publisher(String, '/drone/client_msg', qos_profile)#
-        self.create_subscription(OptimizedTraj, '/drone/optimized_traj', self.optimized_traj_callback, qos_profile)
-        self.create_subscription(String, '/drone/server_msg', self.server_msg_callback, qos_profile)
-          
+        self.offboard_state = False 
+        
         self.received_x_opt = np.zeros((horizon + 1, n))  # (N+1) x n
         self.received_u_opt = np.zeros((horizon, m))  # N x m
         self.received_i_final = 0
@@ -149,48 +139,86 @@ class FlipControlNode(Node):
         self.target_pwm = np.zeros(4, dtype=int)
         self.target_rpm = np.zeros(4, dtype=int)
         self.motor_rpms = np.zeros(4, dtype=int)
-        self.max_rpm = 1200
-        self.master = mavutil.mavlink_connection('udp:127.0.0.1:14550')
-        # Отправим heartbeat, чтобы PX4 начал диалог
-        self.master.mav.heartbeat_send(
-            mavutil.mavlink.MAV_TYPE_GCS,
-            mavutil.mavlink.MAV_AUTOPILOT_INVALID,
-            0, 0, 0
-        )
-
-        # Ждём heartbeat от PX4
-        self.get_logger().info("Жду heartbeat от PX4...")
-        self.master.wait_heartbeat()
-        self.get_logger().info("MAVLink: heartbeat received")
+        self.max_rpm = 15000
  
-        #self.create_timer(0.1, self.send_pwm_loop)
-   
+        # #self.arming_state != VehicleStatus.ARMING_STATE_ARMED:
+        # self.arm()
+
+        # msg = OffboardControlMode()
+        # msg.position = True
+        # msg.velocity = False
+        # msg.acceleration = False
+        # msg.attitude = False
+        # msg.body_rate = False
+        # msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
+        # self.offboard_control_mode_publisher.publish(msg)
+
+
+        # self.create_timer(0.1, self.update) 
+        # self.create_timer(0.1, self.drone_managenment) 
+        # self.create_timer(0.01, self.publish_all)  # 100 Hz
+
+    def timestamp(self):
+        return self.get_clock().now().nanoseconds // 1000  # микросекунды
+
+    def publish_all(self):
+        timestamp = self.timestamp()
+
+        # # 1. VehicleAttitudeSetpoint
+        attitude = VehicleAttitudeSetpoint()
+        attitude.timestamp = timestamp
+        attitude.q_d = [1.0, 0.0, 0.0, 0.0]  # уровень
+        attitude.roll_body = 0.0
+        attitude.pitch_body = 0.0
+        attitude.yaw_body = 0.0
+        attitude.yaw_sp_move_rate = 0.0
+        attitude.thrust_body = [0.0, 0.0, -9.81]
+        self.attitude_pub.publish(attitude)
+
+        # 2. VehicleThrustSetpoint
+        thrust = VehicleThrustSetpoint()
+        thrust.timestamp = timestamp
+        thrust.xyz = [0.0, 0.0, -9.81]
+        self.thrust_pub.publish(thrust)
+
+        # # 3. VehicleTorqueSetpoint
+        # torque = VehicleTorqueSetpoint()
+        # torque.timestamp = timestamp
+        # torque.xyz = [0.0, 0.0, 0.0]
+        # self.torque_pub.publish(torque)
+
+        # # 4. ActuatorMotors
+        # motors = ActuatorMotors()
+        # motors.timestamp = timestamp
+        # motors.control = [0.6, 0.6, 0.6, 0.6, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        # self.motors_pub.publish(motors)
+
+    
     def send_pwm_loop(self):
-        # Значения PWM на каналы (обычно 1 — roll, 2 — pitch, 3 — throttle, 4 — yaw)
-        #self.get_logger().info(f"self.drone_managenment_f: {self.drone_managenment_f}  self.main_state {self.main_state}")
-        if rclpy.ok() and self.drone_managenment_f:
+        if not rclpy.ok():
+            return
 
-            self.master.mav.command_long_send(
-                self.master.target_system,
-                self.master.target_component,
-                mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
-                0,
-                1, 0, 0, 0, 0, 0, 0)  # Армирование дрона
-            self.master.mav.set_mode_send(
-                self.master.target_system,
-                mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
-                VehicleStatus.NAVIGATION_STATE_OFFBOARD)  # где PX4_OFFBOARD_MODE_ID — числовой ID режима offboard
+        level_quat = [1.0, 0.0, 0.0, 0.0]  # без наклона
+        type_mask = (
+        mavutil.mavlink.ATTITUDE_TARGET_TYPEMASK_BODY_ROLL_RATE_IGNORE |
+        mavutil.mavlink.ATTITUDE_TARGET_TYPEMASK_BODY_PITCH_RATE_IGNORE |
+        mavutil.mavlink.ATTITUDE_TARGET_TYPEMASK_BODY_YAW_RATE_IGNORE
+        )
+        # Убедись, что type_mask передаётся без изменений
+        self.get_logger().info(f"type_mask: {type_mask}")  # Должно быть 0b00000111 = 7
 
-            # Отправка RC override: 8 каналов, остальным — 0xffff (игнорировать)
-            self.master.mav.rc_channels_override_send(
-                self.master.target_system,
-                self.master.target_component,
-                *self.target_pwm,  # ch1 to ch8
-                0xffff, 0xffff, 0xffff, 0xffff  # ch9 to ch12 (игнорировать)
-            ) 
-            self.get_logger().info(f"Sent PWM override: {self.target_pwm}")
-
-
+        # Каждый вызов — отправляем команду с тягой 0.7, чтобы удерживать OFFBOARD
+        self.master.mav.set_attitude_target_send(
+            int(self.master.time_since('BOOT') * 1e3),
+            self.master.target_system,
+            self.master.target_component,
+            type_mask,
+            level_quat,
+            0.0, 0.0, 0.0,
+            0.7
+        )
+        #self.get_logger().info("send_pwm_loop")
+   
     def rpm_to_pwm(self,rpm, rpm_min=0, rpm_max=10000, pwm_min=1000, pwm_max=2000):
         rpm = max(min(rpm, rpm_max), rpm_min)
         pwm = pwm_min + (rpm - rpm_min) * (pwm_max - pwm_min) / (rpm_max - rpm_min)
@@ -209,7 +237,7 @@ class FlipControlNode(Node):
             int(self.rpm_to_pwm_pid.get_rotate_pwm(self.target_rpm[i], self.motor_rpms[i]))
             for i in range(4)
         ]
-        #self.get_logger().info(f'self.target_rpm: {self.target_rpm}')
+        self.get_logger().info(f'self.target_rpm: {self.target_rpm}')
       
     def drone_managenment(self):
         if self.drone_managenment_f:
@@ -223,7 +251,7 @@ class FlipControlNode(Node):
         self.received_i_final = msg.i_final
         self.received_cost_final = msg.cost_final
         self.received_done = msg.done
-        #self.get_logger().info(f'px4 OptimizedTraj: {msg}') 
+        self.get_logger().info(f'px4 OptimizedTraj: {msg}') 
 
     def send_message_to_server(self, msg):#
         ros_msg = String()
@@ -241,9 +269,10 @@ class FlipControlNode(Node):
             self.main_state = DroneState.MPC_MANAGEMENT
             self.drone_managenment_f = True 
         
-    def vehicle_status_callback(self, msg): 
+        # NOT WORKING 
+    def vehicle_status_callback(self, msg):
         """Обновляет состояние дрона."""
-        #self.get_logger().info('vehicle_status_callback')
+        self.get_logger().info('vehicle_status_callback')
         self.vehicle_status = msg
         self.arming_state = msg.arming_state
         
@@ -394,10 +423,12 @@ class FlipControlNode(Node):
         #self.get_logger().info(f"self.main_state={self.main_state}  self.flip_state={self.flip_state}")
         #self.get_logger().info(f"UPDATE self.alt={self.alt}  self.vehicle_local_position.z={self.vehicle_local_position.z}")
         if self.main_state == DroneState.INIT:
-            self.set_offboard_mode()
-            self.arm()
-            if self.arming_state == VehicleStatus.ARMING_STATE_ARMED:
-                self.main_state = DroneState.ARMED 
+            # self.set_offboard_mode()
+             
+            if self.arming_state != VehicleStatus.ARMING_STATE_ARMED:
+                pass#self.arm()
+                return
+            self.main_state = DroneState.ARMED 
          
         elif self.main_state == DroneState.ARMED:
              if self.offboard_state:
