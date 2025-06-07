@@ -22,6 +22,7 @@ import threading
 from pymavlink.quaternion import QuaternionBase
 from px4_msgs.msg import  EscStatus 
 import math
+from rclpy.clock import Clock
 
 BOUNCE_TIME = 0.6
 ACCELERATE_TIME = 0.07
@@ -49,7 +50,6 @@ m = 4  # Размерность управления (4 мотора)
 
 class PIDController:
     def __init__(self, Kp: float, Ki: float, Kd: float) -> None:
-        """Инициализация PID-контроллера с заданными коэффициентами."""
         self.Kp = Kp
         self.Ki = Ki
         self.Kd = Kd
@@ -58,13 +58,7 @@ class PIDController:
         self.integral = 0.0
 
     def compute(self, setpoint: float, measurement: float) -> float:
-        """
-        Вычисляет управляющее воздействие на основе ошибки между заданным значением и измерением.
-        
-        :param setpoint: Желаемое значение (например, RPM)
-        :param measurement: Текущее измеренное значение (например, RPM)
-        :return: Управляющее воздействие
-        """
+
         error = setpoint - measurement
         self.integral += error
         derivative = error - self.prev_error
@@ -75,16 +69,11 @@ class PIDController:
         return output
 
     def get_rotate_pwm(self, target_rpm, current_rpm):
-        """
-        Возвращает значение PWM на основе текущих и целевых RPM с использованием PID-регулятора.
-
-        :param target_rpm: Целевое значение оборотов
-        :param current_rpm: Текущее значение оборотов
-        :return: Расчётное PWM значение в диапазоне [1000, 2000]
-        """
+     
         pid_output = self.compute(target_rpm, current_rpm)
         pwm = 1500.0 + pid_output
         return float(np.clip(pwm, 1000.0, 2000.0)) 
+
 
 class FlipControlNode(Node):
     def __init__(self):
@@ -97,35 +86,62 @@ class FlipControlNode(Node):
             history=HistoryPolicy.KEEP_LAST,
             depth=10
         ) 
-        self.vehicle_command_publisher = self.create_publisher(VehicleCommand, '/fmu/in/vehicle_command', qos_profile)
-        self.offboard_control_mode_publisher = self.create_publisher(OffboardControlMode, '/fmu/in/offboard_control_mode', qos_profile) 
-        self.vehicle_rates_publisher = self.create_publisher(VehicleRatesSetpoint, '/fmu/in/vehicle_rates_setpoint', qos_profile)
+
         
+        # Drone movement topics
         self.attitude_pub = self.create_publisher(VehicleAttitudeSetpoint, '/fmu/in/vehicle_attitude_setpoint', qos_profile)
         self.thrust_pub = self.create_publisher(VehicleThrustSetpoint, '/fmu/in/vehicle_thrust_setpoint', qos_profile)
         self.torque_pub = self.create_publisher(VehicleTorqueSetpoint, '/fmu/in/vehicle_torque_setpoint', qos_profile)
         self.motors_pub = self.create_publisher(ActuatorMotors, '/fmu/in/actuator_motors', qos_profile)
- 
-       # MPC INTEGRATION API
-        self.pub_to_mpc = self.create_publisher(String, '/drone/client_msg', qos_profile)#
-        self.create_subscription(OptimizedTraj, '/drone/optimized_traj', self.optimized_traj_callback, qos_profile)
-        self.create_subscription(String, '/drone/server_msg', self.server_msg_callback, qos_profile)
+        self.vehicle_command_publisher = self.create_publisher(VehicleCommand, "/fmu/in/vehicle_command", qos_profile)
+        self.offboard_control_mode_publisher = self.create_publisher(OffboardControlMode, '/fmu/in/offboard_control_mode', qos_profile)
 
-        self.create_subscription(VehicleStatus, '/fmu/out/vehicle_status', self.vehicle_status_callback, qos_profile)
-         # ****** RPM *******
-        self.create_subscription(EscStatus, '/fmu/out/esc_status', self.esc_status_callback, qos_profile)
+        self.pub_to_mpc = self.create_publisher(String, '/drone/client_msg', qos_profile)
+        
+        self.create_subscription(
+            OptimizedTraj, 
+            '/drone/optimized_traj', 
+            self.optimized_traj_callback, 
+            qos_profile)
+        
+        self.create_subscription(
+            String, 
+            '/drone/server_msg', 
+            self.server_msg_callback, 
+            qos_profile)
+        
+        self.create_subscription(
+            VehicleStatus, 
+            '/fmu/out/vehicle_status', 
+            self.vehicle_status_callback, 
+            qos_profile)
+        # get actual RPM
+        self.create_subscription(
+            EscStatus, 
+            '/fmu/out/esc_status', 
+            self.esc_status_callback, 
+            qos_profile)
+        
+        self.nav_state = VehicleStatus.NAVIGATION_STATE_MAX
+        self.arm_state = VehicleStatus.ARMING_STATE_ARMED
+        self.velocity = Vector3()
+        self.yaw = 0.0  #yaw value we send as command
+        self.trueYaw = 0.0  #current yaw value of drone
+        self.truePitch = 0.0
+        self.trueRoll = 0.0
+        self.offboardMode = False
+        self.flightCheck = False
+        self.myCnt = 0
+        self.arm_message = False
+        self.failsafe = False
+        self.current_state = "IDLE"
+        self.last_state = self.current_state
 
         # == == == =STATE CONTROL= == == == 
         self.main_state = DroneState.INIT
         
-        # == == == =PX4 STATES= == == == 
-        self.arming_state = 0 
-        self.nav_state = 0 
-        self.vehicle_status = VehicleStatus()
-        self.stage_time = time.time()
-        self.offboard_is_active = False
-        self.offboard_state = False 
-        
+        # == == == =PX4 STATES= == == ==  
+        self.stage_time = time.time() 
         self.received_x_opt = np.zeros((horizon + 1, n))  # (N+1) x n
         self.received_u_opt = np.zeros((horizon, m))  # N x m
         self.received_i_final = 0
@@ -140,26 +156,126 @@ class FlipControlNode(Node):
         self.target_rpm = np.zeros(4, dtype=int)
         self.motor_rpms = np.zeros(4, dtype=int)
         self.max_rpm = 15000
- 
-        # #self.arming_state != VehicleStatus.ARMING_STATE_ARMED:
-        # self.arm()
-
-        # msg = OffboardControlMode()
-        # msg.position = True
-        # msg.velocity = False
-        # msg.acceleration = False
-        # msg.attitude = False
-        # msg.body_rate = False
-        # msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
-        # self.offboard_control_mode_publisher.publish(msg)
 
 
-        # self.create_timer(0.1, self.update) 
-        # self.create_timer(0.1, self.drone_managenment) 
-        # self.create_timer(0.01, self.publish_all)  # 100 Hz
+        #creates callback function for the arm timer
+        # period is arbitrary, just should be more than 2Hz
+        arm_timer_period = .1 # seconds
+        self.arm_timer_ = self.create_timer(arm_timer_period, self.arm_timer_callback)
+
+        # creates callback function for the command loop
+        # period is arbitrary, just should be more than 2Hz. Because live controls rely on this, a higher frequency is recommended
+        # commands in cmdloop_callback won't be executed if the vehicle is not in offboard mode
+        timer_period = 0.02  # seconds
+        self.timer = self.create_timer(timer_period, self.cmdloop_callback) 
+
+    def arm_timer_callback(self):
+
+        match self.current_state:
+            case "IDLE":
+                if(self.flightCheck and self.arm_message == True):
+                    self.current_state = "ARMING"
+                    self.get_logger().info(f"Arming")
+
+            case "ARMING":
+                if(not(self.flightCheck)):
+                    self.current_state = "IDLE"
+                    self.get_logger().info(f"Arming, Flight Check Failed")
+                elif(self.arm_state == VehicleStatus.ARMING_STATE_ARMED and self.myCnt > 10):
+                    self.current_state = "TAKEOFF"
+                    self.get_logger().info(f"Arming, Takeoff")
+                self.arm() #send arm command
+
+            case "TAKEOFF":
+                if(not(self.flightCheck)):
+                    self.current_state = "IDLE"
+                    self.get_logger().info(f"Takeoff, Flight Check Failed")
+                elif(self.nav_state == VehicleStatus.NAVIGATION_STATE_AUTO_TAKEOFF):
+                    self.current_state = "LOITER"
+                    self.get_logger().info(f"Takeoff, Loiter")
+                self.arm() #send arm command
+                self.take_off() #send takeoff command
+
+            # waits in this state while taking off, and the 
+            # moment VehicleStatus switches to Loiter state it will switch to offboard
+            case "LOITER": 
+                if(not(self.flightCheck)):
+                    self.current_state = "IDLE"
+                    self.get_logger().info(f"Loiter, Flight Check Failed")
+                elif(self.nav_state == VehicleStatus.NAVIGATION_STATE_AUTO_LOITER):
+                    self.current_state = "OFFBOARD"
+                    self.get_logger().info(f"Loiter, Offboard")
+                self.arm()
+
+            case "OFFBOARD":
+                if(not(self.flightCheck) or self.arm_state != VehicleStatus.ARMING_STATE_ARMED or self.failsafe == True):
+                    self.current_state = "IDLE"
+                    self.get_logger().info(f"Offboard, Flight Check Failed")
+                self.state_offboard()
+
+        if(self.arm_state != VehicleStatus.ARMING_STATE_ARMED):
+            self.arm_message = False
+
+        if (self.last_state != self.current_state):
+            self.last_state = self.current_state
+            self.get_logger().info(self.current_state)
+
+        self.myCnt += 1
+
+    def state_offboard(self):
+        self.myCnt = 0
+        self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_DO_SET_MODE, 1., 6.)
+        self.offboardMode = True   
+
+    # Arms the vehicle
+    def arm(self):
+        self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_COMPONENT_ARM_DISARM, 1.0)
+        self.get_logger().info("Arm command send")
+
+    # Takes off the vehicle to a user specified altitude (meters)
+    def take_off(self):
+        self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_NAV_TAKEOFF, param1 = 1.0, param7=5.0) # param7 is altitude in meters
+        self.get_logger().info("Takeoff command send")
+
+
+#publishes offboard control modes and velocity as trajectory setpoints
+    def cmdloop_callback(self):
+        if(self.offboardMode == True):
+            # Publish offboard control modes
+            offboard_msg = OffboardControlMode()
+            offboard_msg.timestamp = int(Clock().now().nanoseconds / 1000)
+            offboard_msg.position = False
+            offboard_msg.velocity = False
+            offboard_msg.acceleration = False
+            self.publisher_offboard_mode.publish(offboard_msg)            
+
+
+    def vehicle_status_callback(self, msg):
+        if (msg.nav_state != self.nav_state):
+            self.get_logger().info(f"NAV_STATUS: {msg.nav_state}")
+        
+        if (msg.arming_state != self.arm_state):
+            self.get_logger().info(f"ARM STATUS: {msg.arming_state}")
+
+        if (msg.failsafe != self.failsafe):
+            self.get_logger().info(f"FAILSAFE: {msg.failsafe}")
+        
+        if (msg.pre_flight_checks_pass != self.flightCheck):
+            self.get_logger().info(f"FlightCheck: {msg.pre_flight_checks_pass}")
+
+        self.nav_state = msg.nav_state
+        self.arming_state = msg.arming_state
+        self.failsafe = msg.failsafe
+        self.flightCheck = msg.pre_flight_checks_pass
+
+        if msg.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
+            self.offboard_state = True
+        else:
+            self.offboard_state = False
 
     def timestamp(self):
         return self.get_clock().now().nanoseconds // 1000  # микросекунды
+
 
     def publish_all(self):
         timestamp = self.timestamp()
@@ -181,44 +297,19 @@ class FlipControlNode(Node):
         thrust.xyz = [0.0, 0.0, -9.81]
         self.thrust_pub.publish(thrust)
 
-        # # 3. VehicleTorqueSetpoint
-        # torque = VehicleTorqueSetpoint()
-        # torque.timestamp = timestamp
-        # torque.xyz = [0.0, 0.0, 0.0]
-        # self.torque_pub.publish(torque)
+        # 3. VehicleTorqueSetpoint
+        torque = VehicleTorqueSetpoint()
+        torque.timestamp = timestamp
+        torque.xyz = [0.0, 0.0, 0.0]
+        self.torque_pub.publish(torque)
 
-        # # 4. ActuatorMotors
-        # motors = ActuatorMotors()
-        # motors.timestamp = timestamp
-        # motors.control = [0.6, 0.6, 0.6, 0.6, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-        # self.motors_pub.publish(motors)
+        # 4. ActuatorMotors
+        motors = ActuatorMotors()
+        motors.timestamp = timestamp
+        motors.control = [0.6, 0.6, 0.6, 0.6, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        self.motors_pub.publish(motors)
 
     
-    def send_pwm_loop(self):
-        if not rclpy.ok():
-            return
-
-        level_quat = [1.0, 0.0, 0.0, 0.0]  # без наклона
-        type_mask = (
-        mavutil.mavlink.ATTITUDE_TARGET_TYPEMASK_BODY_ROLL_RATE_IGNORE |
-        mavutil.mavlink.ATTITUDE_TARGET_TYPEMASK_BODY_PITCH_RATE_IGNORE |
-        mavutil.mavlink.ATTITUDE_TARGET_TYPEMASK_BODY_YAW_RATE_IGNORE
-        )
-        # Убедись, что type_mask передаётся без изменений
-        self.get_logger().info(f"type_mask: {type_mask}")  # Должно быть 0b00000111 = 7
-
-        # Каждый вызов — отправляем команду с тягой 0.7, чтобы удерживать OFFBOARD
-        self.master.mav.set_attitude_target_send(
-            int(self.master.time_since('BOOT') * 1e3),
-            self.master.target_system,
-            self.master.target_component,
-            type_mask,
-            level_quat,
-            0.0, 0.0, 0.0,
-            0.7
-        )
-        #self.get_logger().info("send_pwm_loop")
-   
     def rpm_to_pwm(self,rpm, rpm_min=0, rpm_max=10000, pwm_min=1000, pwm_max=2000):
         rpm = max(min(rpm, rpm_max), rpm_min)
         pwm = pwm_min + (rpm - rpm_min) * (pwm_max - pwm_min) / (rpm_max - rpm_min)
@@ -257,7 +348,7 @@ class FlipControlNode(Node):
         ros_msg = String()
         ros_msg.data = msg
         self.pub_to_mpc.publish(ros_msg)
-        #self.get_logger().info(f'Sent to MPC: {msg}')
+        #self.get_logger().info(f'Send to optimizer: {msg}')
 
     def server_msg_callback(self, msg):
         data = msg.data
@@ -269,22 +360,10 @@ class FlipControlNode(Node):
             self.main_state = DroneState.MPC_MANAGEMENT
             self.drone_managenment_f = True 
         
-        # NOT WORKING 
-    def vehicle_status_callback(self, msg):
-        """Обновляет состояние дрона."""
-        self.get_logger().info('vehicle_status_callback')
-        self.vehicle_status = msg
-        self.arming_state = msg.arming_state
-        
-        if msg.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
-            self.offboard_state = True
-        else:
-            self.offboard_state = False
-            self.get_logger().info(f"Текущий режим: {msg.nav_state}")
-    
+
     def rpm_to_normalized(self, rpms):
         return [(rpm / self.max_rpm) ** 2 for rpm in rpms]
-# MOTOR MANAGEMENT
+
     def send_motor_commands(self):
         # нормализованные значения [0,1] — переводим в pwm/thrust команды
         motor_inputs = self.rpm_to_normalized(self.target_rpm)  # типичный размер: 4
@@ -354,20 +433,20 @@ class FlipControlNode(Node):
         self.vehicle_command_publisher.publish(land_cmd)
         self.get_logger().info('Sending land command.')
     
-    def publish_vehicle_command(self, command, param1=0.0, param2=0.0):
-        """Отправка команды дрону."""
+    #publishes command to /fmu/in/vehicle_command
+    def publish_vehicle_command(self, command, param1=0.0, param2=0.0, param7=0.0):
         msg = VehicleCommand()
         msg.param1 = param1
         msg.param2 = param2
-        msg.command = command
-        msg.target_system = 1
-        msg.target_component = 1
-        msg.source_system = 1
-        msg.source_component = 1
+        msg.param7 = param7    # altitude value in takeoff command
+        msg.command = command  # command ID
+        msg.target_system = 1  # system which should execute the command
+        msg.target_component = 1  # component which should execute the command, 0 for all components
+        msg.source_system = 1  # system sending the command
+        msg.source_component = 1  # component sending the command
         msg.from_external = True
-        msg.timestamp = int(time.time() * 1e6)
+        msg.timestamp = int(Clock().now().nanoseconds / 1000) # time in microseconds
         self.vehicle_command_publisher.publish(msg)
-        #self.get_logger().info(f'publish_vehicle_command')
 
 # ВКЛЮЧИТЬ РЕЖИМЫ
     def set_stabilization_mode(self):
@@ -389,22 +468,6 @@ class FlipControlNode(Node):
             VehicleCommand.VEHICLE_CMD_COMPONENT_ARM_DISARM, param1=1.0)
         self.get_logger().info('Arm command sent')
 
-    """ Дрон должен постоянно получать это сообщение чтобы оставаться в offboard """
-    def offboard_heartbeat(self):
-         if self.offboard_is_active:
-                #self.get_logger().info("Sending SET_MODE OFFBOARD") 
-                """Publish the offboard control mode."""
-                msg = OffboardControlMode()
-                msg.position = True
-                msg.velocity = False
-                msg.acceleration = False
-                msg.attitude = False
-                msg.body_rate = False
-                msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
-                self.offboard_control_mode_publisher.publish(msg)
-    def set_offboard_mode(self):
-            """Switch to offboard mode."""
-            self.offboard_is_active = True 
     """Управление на моторы нужно подавать непрерывно и с частотой не мене 0.01 сек"""
     def flip_thrust_max(self):
         if self.flip_thrust_max_f:
@@ -418,29 +481,6 @@ class FlipControlNode(Node):
             self.set_rates(25.0, 0.0, 0.0, 0.25)
 
      
-    # main spinned function
-    def update(self):
-        #self.get_logger().info(f"self.main_state={self.main_state}  self.flip_state={self.flip_state}")
-        #self.get_logger().info(f"UPDATE self.alt={self.alt}  self.vehicle_local_position.z={self.vehicle_local_position.z}")
-        if self.main_state == DroneState.INIT:
-            # self.set_offboard_mode()
-             
-            if self.arming_state != VehicleStatus.ARMING_STATE_ARMED:
-                pass#self.arm()
-                return
-            self.main_state = DroneState.ARMED 
-         
-        elif self.main_state == DroneState.ARMED:
-             if self.offboard_state:
-                 self.send_message_to_server("takeoff")#
-            #pass
-            
-            #self.send_takeoff_commanad(5.0)
-
-        # elif self.main_state == DroneState.MPC_MANAGEMENT:
-             
-        elif self.main_state == DroneState.LANDING:
-            self.send_land_command()
 
 def main(args=None):
     rclpy.init(args=args)

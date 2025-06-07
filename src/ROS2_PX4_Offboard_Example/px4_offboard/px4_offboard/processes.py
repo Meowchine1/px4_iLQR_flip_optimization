@@ -11,7 +11,7 @@ gnome_terminals = []
 
 # Команды для запуска
 commands = [
-    "MicroXRCEAgent udp4 -p 8888",
+    "MicroXRCEAgent udp4 -p 8888 ",
     "cd ~/PX4-Autopilot && make px4_sitl gz_x500" 
 ]
 

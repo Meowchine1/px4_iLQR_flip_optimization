@@ -66,19 +66,15 @@ def getKey(settings):
         termios.tcsetattr(sys.stdin, termios.TCSADRAIN, settings)
     return key
 
-
-
 def saveTerminalSettings():
     if sys.platform == 'win32':
         return None
     return termios.tcgetattr(sys.stdin)
 
-
 def restoreTerminalSettings(old_settings):
     if sys.platform == 'win32':
         return
     termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
-
 
 def vels(speed, turn):
     return 'currently:\tspeed %s\tturn %s ' % (speed, turn)

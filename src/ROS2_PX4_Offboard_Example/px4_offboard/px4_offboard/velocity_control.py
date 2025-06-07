@@ -111,6 +111,8 @@ class OffboardControl(Node):
         self.velocity = Vector3()
         self.yaw = 0.0  #yaw value we send as command
         self.trueYaw = 0.0  #current yaw value of drone
+        self.truePitch = 0.0
+        self.trueRoll = 0.0
         self.offboardMode = False
         self.flightCheck = False
         self.myCnt = 0
@@ -244,12 +246,22 @@ class OffboardControl(Node):
 
     #receives current trajectory values from drone and grabs the yaw value of the orientation
     def attitude_callback(self, msg):
-        orientation_q = msg.q
 
-        #trueYaw is the drones current yaw value
-        self.trueYaw = -(np.arctan2(2.0*(orientation_q[3]*orientation_q[0] + orientation_q[1]*orientation_q[2]), 
-                                  1.0 - 2.0*(orientation_q[0]*orientation_q[0] + orientation_q[1]*orientation_q[1])))
-        
+        x, y, z, w = msg.q
+
+        # Формулы преобразования
+        t0 = 2.0 * (w * z + x * y)
+        t1 = 1.0 - 2.0 * (y * y + z * z)
+        self.trueYaw = - np.arctan2(t0, t1)
+
+        t2 = 2.0 * (w * y - z * x)
+        t2 = np.clip(t2, -1.0, 1.0)
+        self.truePitch = np.arcsin(t2)
+
+        t3 = 2.0 * (w * x + y * z)
+        t4 = 1.0 - 2.0 * (x * x + y * y)
+        self.trueRoll = np.arctan2(t3, t4)
+ 
     #publishes offboard control modes and velocity as trajectory setpoints
     def cmdloop_callback(self):
         if(self.offboardMode == True):
@@ -257,7 +269,7 @@ class OffboardControl(Node):
             offboard_msg = OffboardControlMode()
             offboard_msg.timestamp = int(Clock().now().nanoseconds / 1000)
             offboard_msg.position = False
-            offboard_msg.velocity = True
+            offboard_msg.velocity = False
             offboard_msg.acceleration = False
             self.publisher_offboard_mode.publish(offboard_msg)            
 
