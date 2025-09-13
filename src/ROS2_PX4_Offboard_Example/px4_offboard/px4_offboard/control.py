@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 import sys
-
 import geometry_msgs.msg
 import rclpy
 import std_msgs.msg
-
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy, QoSDurabilityPolicy
 
 if sys.platform == 'win32':

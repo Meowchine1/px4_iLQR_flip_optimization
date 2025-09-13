@@ -64,25 +64,41 @@ def generate_launch_description():
         ),
          
         Node(
-            package='px4_offboard',
-            namespace='px4_offboard',
-            executable='dynamics_drone_control',
-            name='dynamics_drone_control', 
-        ),
-        
-        Node(
             package='rviz2',
             namespace='',
             executable='rviz2',
             name='rviz2',
             arguments=['-d', [os.path.join(package_dir, 'visualize.rviz')]]
         ),
+        # Node(
+        #     package='px4_offboard',
+        #     namespace='px4_offboard',
+        #     executable='px4_interaction',
+        #     name='px4_interaction', 
+        # ),
+
+        #    Node(
+        #     package='px4_offboard',
+        #     namespace='px4_offboard',
+        #     executable='base_control_test',
+        #     name='base_control_test', 
+        # ),
+
         Node(
             package='px4_offboard',
             namespace='px4_offboard',
-            executable='px4_interaction',
-            name='px4_interaction', 
+            executable='custom_control',
+            name='custom_control', 
         ),
+
+
+        Node(
+            package='px4_offboard',
+            namespace='px4_offboard',
+            executable='velocity_control',
+            name='velocity_control', 
+        ),
+
         Node(
             package='robot_localization',
             executable='ekf_node',

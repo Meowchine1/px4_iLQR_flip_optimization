@@ -33,8 +33,11 @@ setup(
                 'offboard_control_example = px4_offboard.offboard_control_example:main',
                 'visualizer = px4_offboard.visualizer:main',
                 'processes = px4_offboard.processes:main',
-                'px4_interaction = px4_offboard.px4_interaction:main',
-                'dynamics_drone_control = px4_offboard.dynamics_drone_control:main'
+                'velocity_control = px4_offboard.velocity_control:main',
+                'custom_control = px4_offboard.custom_control:main',
+                #'base_control_test = px4_offboard.base_control_test:main'
+               # 'px4_interaction = px4_offboard.px4_interaction:main',
+               # 'dynamics_drone_control = px4_offboard.dynamics_drone_control:main'
                  
         ],
     },

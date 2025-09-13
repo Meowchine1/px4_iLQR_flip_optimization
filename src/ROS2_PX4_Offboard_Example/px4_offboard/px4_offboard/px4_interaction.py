@@ -47,6 +47,25 @@ horizon = 50 # Горизонт предсказания
 n = 13  # Размерность состояния квадрокоптера (позиция, скорость, ориентация, угловая скорость)
 m = 4  # Размерность управления (4 мотора)
  
+nav_state_dict = {
+    VehicleStatus.NAVIGATION_STATE_MANUAL: "MANUAL",
+    VehicleStatus.NAVIGATION_STATE_ALTCTL: "ALTCTL",
+    VehicleStatus.NAVIGATION_STATE_POSCTL: "POSCTL",
+    VehicleStatus.NAVIGATION_STATE_AUTO_MISSION: "AUTO_MISSION",
+    VehicleStatus.NAVIGATION_STATE_AUTO_LOITER: "AUTO_LOITER",
+    VehicleStatus.NAVIGATION_STATE_AUTO_RTL: "AUTO_RTL",
+    VehicleStatus.NAVIGATION_STATE_ACRO: "ACRO",
+    VehicleStatus.NAVIGATION_STATE_DESCEND: "DESCEND",
+    VehicleStatus.NAVIGATION_STATE_TERMINATION: "TERMINATION",
+    VehicleStatus.NAVIGATION_STATE_OFFBOARD: "OFFBOARD",
+    VehicleStatus.NAVIGATION_STATE_AUTO_TAKEOFF: "AUTO_TAKEOFF",
+    VehicleStatus.NAVIGATION_STATE_AUTO_PRECLAND: "AUTO_PRECLAND",
+    VehicleStatus.NAVIGATION_STATE_AUTO_LAND: "AUTO_LAND",
+}
+arming_state_dict = {
+    VehicleStatus.ARMING_STATE_DISARMED: "DISARMED",
+    VehicleStatus.ARMING_STATE_ARMED: "ARMED",
+}
 
 class PIDController:
     def __init__(self, Kp: float, Ki: float, Kd: float) -> None:
@@ -85,9 +104,7 @@ class FlipControlNode(Node):
             durability=DurabilityPolicy.TRANSIENT_LOCAL,
             history=HistoryPolicy.KEEP_LAST,
             depth=10
-        ) 
-
-        
+        )  
         # Drone movement topics
         self.attitude_pub = self.create_publisher(VehicleAttitudeSetpoint, '/fmu/in/vehicle_attitude_setpoint', qos_profile)
         self.thrust_pub = self.create_publisher(VehicleThrustSetpoint, '/fmu/in/vehicle_thrust_setpoint', qos_profile)
@@ -102,14 +119,12 @@ class FlipControlNode(Node):
             OptimizedTraj, 
             '/drone/optimized_traj', 
             self.optimized_traj_callback, 
-            qos_profile)
-        
+            qos_profile) 
         self.create_subscription(
             String, 
             '/drone/server_msg', 
             self.server_msg_callback, 
-            qos_profile)
-        
+            qos_profile) 
         self.create_subscription(
             VehicleStatus, 
             '/fmu/out/vehicle_status', 
@@ -135,11 +150,9 @@ class FlipControlNode(Node):
         self.arm_message = False
         self.failsafe = False
         self.current_state = "IDLE"
-        self.last_state = self.current_state
-
+        self.last_state = self.current_state 
         # == == == =STATE CONTROL= == == == 
-        self.main_state = DroneState.INIT
-        
+        self.main_state = DroneState.INIT 
         # == == == =PX4 STATES= == == ==  
         self.stage_time = time.time() 
         self.received_x_opt = np.zeros((horizon + 1, n))  # (N+1) x n
@@ -156,88 +169,103 @@ class FlipControlNode(Node):
         self.target_rpm = np.zeros(4, dtype=int)
         self.motor_rpms = np.zeros(4, dtype=int)
         self.max_rpm = 15000
-
-
-        #creates callback function for the arm timer
-        # period is arbitrary, just should be more than 2Hz
+ 
         arm_timer_period = .1 # seconds
         self.arm_timer_ = self.create_timer(arm_timer_period, self.arm_timer_callback)
-
-        # creates callback function for the command loop
-        # period is arbitrary, just should be more than 2Hz. Because live controls rely on this, a higher frequency is recommended
-        # commands in cmdloop_callback won't be executed if the vehicle is not in offboard mode
+ 
         timer_period = 0.02  # seconds
         self.timer = self.create_timer(timer_period, self.cmdloop_callback) 
 
-    def arm_timer_callback(self):
-
+    def arm_timer_callback(self): 
         match self.current_state:
             case "IDLE":
-                if(self.flightCheck and self.arm_message == True):
+                if self.flightCheck and self.arm_message:
                     self.current_state = "ARMING"
-                    self.get_logger().info(f"Arming")
+                    self.get_logger().info("Arming")
+                    self.myCnt = 0  # сброс счётчика при входе
 
             case "ARMING":
-                if(not(self.flightCheck)):
+                if not self.flightCheck:
                     self.current_state = "IDLE"
-                    self.get_logger().info(f"Arming, Flight Check Failed")
-                elif(self.arm_state == VehicleStatus.ARMING_STATE_ARMED and self.myCnt > 10):
+                    self.get_logger().info("Arming, Flight Check Failed")
+                elif self.arm_state == VehicleStatus.ARMING_STATE_ARMED and self.myCnt > 10:
                     self.current_state = "TAKEOFF"
-                    self.get_logger().info(f"Arming, Takeoff")
-                self.arm() #send arm command
+                    self.get_logger().info("Arming, Takeoff")
+                    self.myCnt = 0
+                else:
+                    # Отправляем arm-команду, если ещё не заармлены
+                    if self.arm_state != VehicleStatus.ARMING_STATE_ARMED:
+                        self.arm()
 
             case "TAKEOFF":
-                if(not(self.flightCheck)):
+                if not self.flightCheck:
                     self.current_state = "IDLE"
-                    self.get_logger().info(f"Takeoff, Flight Check Failed")
-                elif(self.nav_state == VehicleStatus.NAVIGATION_STATE_AUTO_TAKEOFF):
+                    self.get_logger().info("Takeoff, Flight Check Failed")
+                elif self.nav_state == VehicleStatus.NAVIGATION_STATE_AUTO_TAKEOFF:
                     self.current_state = "LOITER"
-                    self.get_logger().info(f"Takeoff, Loiter")
-                self.arm() #send arm command
-                self.take_off() #send takeoff command
+                    self.get_logger().info("Takeoff, Loiter")
+                    self.set_mode_loiter()
+                    self.myCnt = 0
+                else:
+                    # Отправляем команду takeoff (предполагается, что режим установлен в AUTO.TAKEOFF)
+                    self.take_off()
 
-            # waits in this state while taking off, and the 
-            # moment VehicleStatus switches to Loiter state it will switch to offboard
-            case "LOITER": 
-                if(not(self.flightCheck)):
+            case "LOITER":
+                if not self.flightCheck:
                     self.current_state = "IDLE"
-                    self.get_logger().info(f"Loiter, Flight Check Failed")
-                elif(self.nav_state == VehicleStatus.NAVIGATION_STATE_AUTO_LOITER):
+                    self.get_logger().info("Loiter, Flight Check Failed")
+                elif self.nav_state == VehicleStatus.NAVIGATION_STATE_AUTO_LOITER:
                     self.current_state = "OFFBOARD"
-                    self.get_logger().info(f"Loiter, Offboard")
-                self.arm()
+                    self.get_logger().info("Loiter, Offboard")
+                    self.myCnt = 0
+                else:
+                    # Здесь можно держать LOITER, режим уже выставлен
+                    pass
 
             case "OFFBOARD":
-                if(not(self.flightCheck) or self.arm_state != VehicleStatus.ARMING_STATE_ARMED or self.failsafe == True):
+                if (not self.flightCheck or
+                    self.arm_state != VehicleStatus.ARMING_STATE_ARMED or
+                    self.failsafe):
                     self.current_state = "IDLE"
-                    self.get_logger().info(f"Offboard, Flight Check Failed")
-                self.state_offboard()
+                    self.get_logger().info("Offboard, Flight Check Failed")
+                else:
+                    self.state_offboard()
 
-        if(self.arm_state != VehicleStatus.ARMING_STATE_ARMED):
+        # Сбрасываем arm_message, если не заармлены
+        if self.arm_state != VehicleStatus.ARMING_STATE_ARMED:
             self.arm_message = False
 
-        if (self.last_state != self.current_state):
+        # Логируем изменение состояния
+        if self.last_state != self.current_state:
             self.last_state = self.current_state
-            self.get_logger().info(self.current_state)
+            self.get_logger().info(f"State changed to {self.current_state}")
 
         self.myCnt += 1
 
+
     def state_offboard(self):
         self.myCnt = 0
+        # Вызов режима OFFBOARD (6 — это VehicleCommand.MODE_OFFBOARD)
         self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_DO_SET_MODE, 1., 6.)
-        self.offboardMode = True   
-
-    # Arms the vehicle
+        self.offboardMode = True
+ 
     def arm(self):
         self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_COMPONENT_ARM_DISARM, 1.0)
-        self.get_logger().info("Arm command send")
-
-    # Takes off the vehicle to a user specified altitude (meters)
+        self.get_logger().info("Arm command sent")
+ 
     def take_off(self):
-        self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_NAV_TAKEOFF, param1 = 1.0, param7=5.0) # param7 is altitude in meters
-        self.get_logger().info("Takeoff command send")
-
-
+        self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_NAV_TAKEOFF, param1=1.0, param7=5.0)
+        self.get_logger().info("Takeoff command sent")
+ 
+    def set_mode_loiter(self):
+        self.publish_vehicle_command(
+            VehicleCommand.VEHICLE_CMD_DO_SET_MODE,
+            param1=1.0,  # custom mode
+            param2=float(VehicleCommand.MODE_AUTO),
+            param3=float(VehicleCommand.SUB_MODE_AUTO_LOITER)
+        )
+        self.get_logger().info("Mode set to AUTO.LOITER")
+ 
 #publishes offboard control modes and velocity as trajectory setpoints
     def cmdloop_callback(self):
         if(self.offboardMode == True):
@@ -251,27 +279,32 @@ class FlipControlNode(Node):
 
 
     def vehicle_status_callback(self, msg):
-        if (msg.nav_state != self.nav_state):
-            self.get_logger().info(f"NAV_STATUS: {msg.nav_state}")
+        # Логирование навигационного состояния, если изменилось
+        if msg.nav_state != self.nav_state:
+            nav_str = nav_state_dict.get(msg.nav_state, f"UNKNOWN({msg.nav_state})")
+            self.get_logger().info(f"NAV_STATUS: {nav_str}")
         
-        if (msg.arming_state != self.arm_state):
-            self.get_logger().info(f"ARM STATUS: {msg.arming_state}")
+        # Логирование статуса армирования, если изменилось
+        if msg.arming_state != self.arming_state:
+            arm_str = arming_state_dict.get(msg.arming_state, f"UNKNOWN({msg.arming_state})")
+            self.get_logger().info(f"ARM STATUS: {arm_str}")
 
-        if (msg.failsafe != self.failsafe):
+        # Логирование failsafe
+        if msg.failsafe != self.failsafe:
             self.get_logger().info(f"FAILSAFE: {msg.failsafe}")
-        
-        if (msg.pre_flight_checks_pass != self.flightCheck):
+
+        # Логирование результата предполетных проверок
+        if msg.pre_flight_checks_pass != self.flightCheck:
             self.get_logger().info(f"FlightCheck: {msg.pre_flight_checks_pass}")
 
+        # Обновление внутренних переменных
         self.nav_state = msg.nav_state
         self.arming_state = msg.arming_state
         self.failsafe = msg.failsafe
         self.flightCheck = msg.pre_flight_checks_pass
 
-        if msg.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
-            self.offboard_state = True
-        else:
-            self.offboard_state = False
+        # Обновление флага offboard
+        self.offboard_state = (msg.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD)
 
     def timestamp(self):
         return self.get_clock().now().nanoseconds // 1000  # микросекунды

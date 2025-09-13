@@ -1,202 +1,242 @@
 #!/usr/bin/env python
-############################################################################
-#
-#   Copyright (C) 2022 PX4 Development Team. All rights reserved.
-#
-# Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions
-# are met:
-#
-# 1. Redistributions of source code must retain the above copyright
-#    notice, this list of conditions and the following disclaimer.
-# 2. Redistributions in binary form must reproduce the above copyright
-#    notice, this list of conditions and the following disclaimer in
-#    the documentation and/or other materials provided with the
-#    distribution.
-# 3. Neither the name PX4 nor the names of its contributors may be
-#    used to endorse or promote products derived from this software
-#    without specific prior written permission.
-#
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
-# FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
-# COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
-# INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
-# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
-# OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
-# AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-# LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
-# ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-# POSSIBILITY OF SUCH DAMAGE.
-#
-############################################################################
 
-__author__ = "Braden Wagstaff"
-__contact__ = "braden@arkelectron.com"
+
+__author__ = "Meowchine1"
+__contact__ = "meowchine111@gmail.com"
 
 import rclpy
 from rclpy.node import Node
 import numpy as np
 from rclpy.clock import Clock
-from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy, QoSDurabilityPolicy
-
+from rclpy.qos import QoSProfile, ReliabilityPolicy,DurabilityPolicy, HistoryPolicy 
+import math
 from px4_msgs.msg import OffboardControlMode
 from px4_msgs.msg import TrajectorySetpoint
 from px4_msgs.msg import VehicleStatus
-from px4_msgs.msg import VehicleAttitude
+from px4_msgs.msg import VehicleAttitude, VehicleAttitudeSetpoint
 from px4_msgs.msg import VehicleCommand
 from geometry_msgs.msg import Twist, Vector3
 from math import pi
 from std_msgs.msg import Bool
+import time
 
+nav_state_dict = {
+    VehicleStatus.NAVIGATION_STATE_MANUAL: "MANUAL",
+    VehicleStatus.NAVIGATION_STATE_ALTCTL: "ALTCTL",
+    VehicleStatus.NAVIGATION_STATE_POSCTL: "POSCTL",
+    VehicleStatus.NAVIGATION_STATE_AUTO_MISSION: "AUTO_MISSION",
+    VehicleStatus.NAVIGATION_STATE_AUTO_LOITER: "AUTO_LOITER",
+    VehicleStatus.NAVIGATION_STATE_AUTO_RTL: "AUTO_RTL",
+    VehicleStatus.NAVIGATION_STATE_POSITION_SLOW: "POSITION_SLOW",
+    VehicleStatus.NAVIGATION_STATE_FREE5: "FREE5",
+    VehicleStatus.NAVIGATION_STATE_FREE4: "FREE4",
+    VehicleStatus.NAVIGATION_STATE_FREE3: "FREE3",
+    VehicleStatus.NAVIGATION_STATE_ACRO: "ACRO",
+    VehicleStatus.NAVIGATION_STATE_FREE2: "FREE2",
+    VehicleStatus.NAVIGATION_STATE_DESCEND: "DESCEND",
+    VehicleStatus.NAVIGATION_STATE_TERMINATION: "TERMINATION",
+    VehicleStatus.NAVIGATION_STATE_OFFBOARD: "OFFBOARD",
+    VehicleStatus.NAVIGATION_STATE_STAB: "STABILIZED",
+    VehicleStatus.NAVIGATION_STATE_FREE1: "FREE1",
+    VehicleStatus.NAVIGATION_STATE_AUTO_TAKEOFF: "AUTO_TAKEOFF",
+    VehicleStatus.NAVIGATION_STATE_AUTO_LAND: "AUTO_LAND",
+    VehicleStatus.NAVIGATION_STATE_AUTO_FOLLOW_TARGET: "AUTO_FOLLOW_TARGET",
+    VehicleStatus.NAVIGATION_STATE_AUTO_PRECLAND: "AUTO_PRECLAND",
+    VehicleStatus.NAVIGATION_STATE_ORBIT: "ORBIT",
+    VehicleStatus.NAVIGATION_STATE_AUTO_VTOL_TAKEOFF: "AUTO_VTOL_TAKEOFF",
+    VehicleStatus.NAVIGATION_STATE_EXTERNAL1: "EXTERNAL1",
+    VehicleStatus.NAVIGATION_STATE_EXTERNAL2: "EXTERNAL2",
+    VehicleStatus.NAVIGATION_STATE_EXTERNAL3: "EXTERNAL3",
+    VehicleStatus.NAVIGATION_STATE_EXTERNAL4: "EXTERNAL4",
+    VehicleStatus.NAVIGATION_STATE_EXTERNAL5: "EXTERNAL5",
+    VehicleStatus.NAVIGATION_STATE_EXTERNAL6: "EXTERNAL6",
+    VehicleStatus.NAVIGATION_STATE_EXTERNAL7: "EXTERNAL7",
+    VehicleStatus.NAVIGATION_STATE_EXTERNAL8: "EXTERNAL8",
+    VehicleStatus.NAVIGATION_STATE_MAX: "MAX"
+}
+
+arm_state_dict = {
+VehicleStatus.ARMING_STATE_DISARMED: "DISARMED",
+VehicleStatus.ARMING_STATE_ARMED: "ARMED"
+}
+
+failsafe_dict = {
+    0: "DISABLED",
+    1: "ENABLED",
+    2: "WOULD_FAILSAFE"
+}
+ 
 
 class OffboardControl(Node):
 
     def __init__(self):
         super().__init__('minimal_publisher')
         qos_profile = QoSProfile(
-            reliability=QoSReliabilityPolicy.BEST_EFFORT,
-            durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
-            history=QoSHistoryPolicy.KEEP_LAST,
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            history=HistoryPolicy.KEEP_LAST,
             depth=1
         )
 
-        #Create subscriptions
+        # Create publishers
+        self.offboard_control_mode_publisher = self.create_publisher(
+            OffboardControlMode, '/fmu/in/offboard_control_mode', qos_profile)
+        
         self.status_sub = self.create_subscription(
             VehicleStatus,
             '/fmu/out/vehicle_status',
             self.vehicle_status_callback,
             qos_profile)
-        
         self.offboard_velocity_sub = self.create_subscription(
             Twist,
             '/offboard_velocity_cmd',
             self.offboard_velocity_callback,
             qos_profile)
-        
         self.attitude_sub = self.create_subscription(
             VehicleAttitude,
             '/fmu/out/vehicle_attitude',
             self.attitude_callback,
-            qos_profile)
-        
-        self.my_bool_sub = self.create_subscription(
-            Bool,
-            '/arm_message',
-            self.arm_message_callback,
-            qos_profile)
+            qos_profile) 
 
-
-        #Create publishers
         self.publisher_offboard_mode = self.create_publisher(OffboardControlMode, '/fmu/in/offboard_control_mode', qos_profile)
         self.publisher_velocity = self.create_publisher(Twist, '/fmu/in/setpoint_velocity/cmd_vel_unstamped', qos_profile)
         self.publisher_trajectory = self.create_publisher(TrajectorySetpoint, '/fmu/in/trajectory_setpoint', qos_profile)
         self.vehicle_command_publisher_ = self.create_publisher(VehicleCommand, "/fmu/in/vehicle_command", 10)
+        self.publisher_attitude = self.create_publisher(VehicleAttitudeSetpoint, '/fmu/in/vehicle_attitude_setpoint', qos_profile)
 
-        
-        #creates callback function for the arm timer
-        # period is arbitrary, just should be more than 2Hz
-        arm_timer_period = .1 # seconds
-        self.arm_timer_ = self.create_timer(arm_timer_period, self.arm_timer_callback)
+        #** connection between custom control and velocityu control
+        self.control_permission_pub = self.create_publisher(Bool, 'control_permission', qos_profile)
+        # Timers
+        self.switch_to_ofboard_timer = self.create_timer(0.1, self.switch_to_ofboard_timer)
+        self.vehicle_status_timer = self.create_timer(2., self.print_vehicle_status)
 
-        # creates callback function for the command loop
-        # period is arbitrary, just should be more than 2Hz. Because live controls rely on this, a higher frequency is recommended
-        # commands in cmdloop_callback won't be executed if the vehicle is not in offboard mode
-        timer_period = 0.02  # seconds
-        self.timer = self.create_timer(timer_period, self.cmdloop_callback)
-
-        self.nav_state = VehicleStatus.NAVIGATION_STATE_MAX
-        self.arm_state = VehicleStatus.ARMING_STATE_ARMED
+        # fileds initialization
+        self.nav_state = VehicleStatus.NAVIGATION_STATE_MANUAL
+        self.arming_state = VehicleStatus.ARMING_STATE_DISARMED 
         self.velocity = Vector3()
         self.yaw = 0.0  #yaw value we send as command
         self.trueYaw = 0.0  #current yaw value of drone
         self.truePitch = 0.0
-        self.trueRoll = 0.0
-        self.offboardMode = False
+        self.trueRoll = 0.0 
         self.flightCheck = False
         self.myCnt = 0
-        self.arm_message = False
+        self.offboard_state = False 
         self.failsafe = False
         self.current_state = "IDLE"
-        self.last_state = self.current_state
+        self.offboard_setpoint_counter = 0
+ 
+
+    def publish_offboard_control_heartbeat_signal(self):
+        """Publish the offboard control mode."""
+        msg = OffboardControlMode()
+        msg.position = True
+        msg.velocity = False
+        msg.acceleration = False
+        msg.attitude = False
+        msg.body_rate = False
+        msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
+        self.offboard_control_mode_publisher.publish(msg)
+
+    def arm(self):
+        """Send an arm command to the vehicle."""
+        self.publish_vehicle_command(
+            VehicleCommand.VEHICLE_CMD_COMPONENT_ARM_DISARM, param1=1.0)
+        self.get_logger().info('Arm command sent')
+
+    def disarm(self):
+        """Send a disarm command to the vehicle."""
+        self.publish_vehicle_command(
+            VehicleCommand.VEHICLE_CMD_COMPONENT_ARM_DISARM, param1=0.0)
+        self.get_logger().info('Disarm command sent')
+
+    def engage_offboard_mode(self):
+        """Switch to offboard mode."""
+        self.publish_vehicle_command(
+            VehicleCommand.VEHICLE_CMD_DO_SET_MODE, param1=1.0, param2=6.0)
+        self.get_logger().info("Switching to offboard mode")
+
+    def switch_to_ofboard_timer(self):
+        self.publish_offboard_control_heartbeat_signal()
+        
+        if self.arming_state != VehicleStatus.ARMING_STATE_ARMED:
+            self.arm()
+
+        if self.offboard_state != VehicleStatus.NAVIGATION_STATE_OFFBOARD:
+            self.engage_offboard_mode()
+
+        # if self.offboard_setpoint_counter == 10:
+        #     self.engage_offboard_mode() 
+
+        # if self.offboard_setpoint_counter < 11:
+        #     self.offboard_setpoint_counter += 1
+
+         
 
 
-    def arm_message_callback(self, msg):
-        self.arm_message = msg.data
-        self.get_logger().info(f"Arm Message: {self.arm_message}")
+        #I tryed to implement state machine but it isnot work clearly as expected
+        # match self.current_state:
+        #     case "IDLE":
+        #         if self.flightCheck:
+        #             self.current_state = "ARMING"
+        #             self.get_logger().info("move to ARMING state")
+        #         #self.arm()
 
-    #callback function that arms, takes off, and switches to offboard mode
-    #implements a finite state machine
-    def arm_timer_callback(self):
+        #     case "ARMING":
+        #         self.arm()
+        #         if not self.flightCheck:
+        #             self.current_state = "IDLE"
+        #             #self.get_logger().info("ARMING --> back to IDLE state")
+        #         elif self.arming_state == VehicleStatus.ARMING_STATE_ARMED and self.myCnt > 10:
+        #             self.current_state = "TAKEOFF"
+        #             #self.get_logger().info("move to TAKEOFF state")
+                 
 
-        match self.current_state:
-            case "IDLE":
-                if(self.flightCheck and self.arm_message == True):
-                    self.current_state = "ARMING"
-                    self.get_logger().info(f"Arming")
-
-            case "ARMING":
-                if(not(self.flightCheck)):
-                    self.current_state = "IDLE"
-                    self.get_logger().info(f"Arming, Flight Check Failed")
-                elif(self.arm_state == VehicleStatus.ARMING_STATE_ARMED and self.myCnt > 10):
-                    self.current_state = "TAKEOFF"
-                    self.get_logger().info(f"Arming, Takeoff")
-                self.arm() #send arm command
-
-            case "TAKEOFF":
-                if(not(self.flightCheck)):
-                    self.current_state = "IDLE"
-                    self.get_logger().info(f"Takeoff, Flight Check Failed")
-                elif(self.nav_state == VehicleStatus.NAVIGATION_STATE_AUTO_TAKEOFF):
-                    self.current_state = "LOITER"
-                    self.get_logger().info(f"Takeoff, Loiter")
-                self.arm() #send arm command
-                self.take_off() #send takeoff command
-
-            # waits in this state while taking off, and the 
-            # moment VehicleStatus switches to Loiter state it will switch to offboard
-            case "LOITER": 
-                if(not(self.flightCheck)):
-                    self.current_state = "IDLE"
-                    self.get_logger().info(f"Loiter, Flight Check Failed")
-                elif(self.nav_state == VehicleStatus.NAVIGATION_STATE_AUTO_LOITER):
-                    self.current_state = "OFFBOARD"
-                    self.get_logger().info(f"Loiter, Offboard")
-                self.arm()
-
-            case "OFFBOARD":
-                if(not(self.flightCheck) or self.arm_state != VehicleStatus.ARMING_STATE_ARMED or self.failsafe == True):
-                    self.current_state = "IDLE"
-                    self.get_logger().info(f"Offboard, Flight Check Failed")
-                self.state_offboard()
-
-        if(self.arm_state != VehicleStatus.ARMING_STATE_ARMED):
-            self.arm_message = False
-
-        if (self.last_state != self.current_state):
-            self.last_state = self.current_state
-            self.get_logger().info(self.current_state)
-
-        self.myCnt += 1
+        #     case "TAKEOFF":
+        #         self.take_off()
+        #         if not self.flightCheck:
+        #             self.current_state = "IDLE"
+        #             #self.get_logger().info("TAKEOFF --> back to IDLE state")
+        #         elif self.nav_state == VehicleStatus.NAVIGATION_STATE_AUTO_TAKEOFF: 
+        #             self.current_state = "OFFBOARD"
+        #            # self.get_logger().info("move to OFFBOARD state")
+                 
+        #     case "OFFBOARD":
+        #         self.state_offboard()
+        #         if self.arming_state != VehicleStatus.ARMING_STATE_ARMED:
+        #             self.current_state = "IDLE"
+        #             #self.get_logger().info("Offboard --> back to IDLE state")
+        #         elif self.offboard_state:
+        #                 self.current_state = "OFFBOARD_FLYING"
+        #                 #self.get_logger().info("Entered OFFBOARD_FLYING")
+                 
+        #     case "OFFBOARD_FLYING":
+        #         # Проверка на потерю управления
+        #         if not self.flightCheck:
+        #             #self.get_logger().warn("OFFBOARD_FLYING --> back to IDLE state: flightCheck failed")
+        #             self.current_state = "IDLE"
+        #         elif self.arming_state != VehicleStatus.ARMING_STATE_ARMED:
+        #             #self.get_logger().warn("OFFBOARD_FLYING --> back to IDLE state: Disarmed")
+        #             self.current_state = "IDLE"
+        #         elif not self.offboard_state:
+        #             #self.get_logger().warn("OFFBOARD_FLYING → back to OFFBOARD: Offboard lost")
+        #             self.current_state = "OFFBOARD"
+        #         elif self.failsafe:
+        #             #self.get_logger().warn("OFFBOARD_FLYING --> back to IDLE state: Failsafe")
+        #             self.current_state = "IDLE"
+        # self.myCnt += 1
 
     def state_offboard(self):
         self.myCnt = 0
         self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_DO_SET_MODE, 1., 6.)
-        self.offboardMode = True   
-
-    # Arms the vehicle
+ 
     def arm(self):
         self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_COMPONENT_ARM_DISARM, 1.0)
-        self.get_logger().info("Arm command send")
-
-    # Takes off the vehicle to a user specified altitude (meters)
+        #self.get_logger().info("Arm command send")
+ 
     def take_off(self):
         self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_NAV_TAKEOFF, param1 = 1.0, param7=5.0) # param7 is altitude in meters
-        self.get_logger().info("Takeoff command send")
-
-    #publishes command to /fmu/in/vehicle_command
+        #self.get_logger().info("Takeoff command send")
+ 
     def publish_vehicle_command(self, command, param1=0.0, param2=0.0, param7=0.0):
         msg = VehicleCommand()
         msg.param1 = param1
@@ -210,103 +250,71 @@ class OffboardControl(Node):
         msg.from_external = True
         msg.timestamp = int(Clock().now().nanoseconds / 1000) # time in microseconds
         self.vehicle_command_publisher_.publish(msg)
+ 
 
-    #receives and sets vehicle status values 
+    def check_control_permission(self):
+        msg = Bool()
+        msg.data = (
+            (self.arming_state == VehicleStatus.ARMING_STATE_ARMED) and self.offboard_state
+        )
+        self.control_permission_pub.publish(msg)
+
     def vehicle_status_callback(self, msg):
-
-        if (msg.nav_state != self.nav_state):
-            self.get_logger().info(f"NAV_STATUS: {msg.nav_state}")
-        
-        if (msg.arming_state != self.arm_state):
-            self.get_logger().info(f"ARM STATUS: {msg.arming_state}")
-
-        if (msg.failsafe != self.failsafe):
-            self.get_logger().info(f"FAILSAFE: {msg.failsafe}")
-        
-        if (msg.pre_flight_checks_pass != self.flightCheck):
-            self.get_logger().info(f"FlightCheck: {msg.pre_flight_checks_pass}")
-
         self.nav_state = msg.nav_state
-        self.arm_state = msg.arming_state
+        self.arming_state = msg.arming_state
         self.failsafe = msg.failsafe
         self.flightCheck = msg.pre_flight_checks_pass
+        # Обновление флага offboard
+        self.offboard_state =  msg.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD 
+        self.check_control_permission()
 
+        #self.get_logger().info(" vehicle_status_callback")
 
-    #receives Twist commands from Teleop and converts NED -> FLU
+    def print_vehicle_status(self):
+        self.get_logger().info(
+            f"\nNAV_STATUS:    {nav_state_dict.get(self.nav_state, 'UNKNOWN')}\n"
+            f"ARM_STATUS:    {arm_state_dict.get(self.arming_state, 'UNKNOWN')}\n"
+            f"FAILSAFE:      {failsafe_dict.get(self.failsafe)}\n"
+            f"FlightCheck:   {self.flightCheck}\n"
+            f"OffboardState: {self.offboard_state}\n"
+            f"self.current_state {self.current_state}\n"
+        )
+
     def offboard_velocity_callback(self, msg):
-        #implements NED -> FLU Transformation
-        # X (FLU) is -Y (NED)
         self.velocity.x = -msg.linear.y
-        # Y (FLU) is X (NED)
         self.velocity.y = msg.linear.x
-        # Z (FLU) is -Z (NED)
         self.velocity.z = -msg.linear.z
-        # A conversion for angular z is done in the attitude_callback function(it's the '-' in front of self.trueYaw)
         self.yaw = msg.angular.z
+        self.roll = msg.angular.x
+        self.pitch = msg.angular.y
 
-    #receives current trajectory values from drone and grabs the yaw value of the orientation
     def attitude_callback(self, msg):
-
         x, y, z, w = msg.q
-
         # Формулы преобразования
         t0 = 2.0 * (w * z + x * y)
         t1 = 1.0 - 2.0 * (y * y + z * z)
         self.trueYaw = - np.arctan2(t0, t1)
-
         t2 = 2.0 * (w * y - z * x)
         t2 = np.clip(t2, -1.0, 1.0)
         self.truePitch = np.arcsin(t2)
-
         t3 = 2.0 * (w * x + y * z)
         t4 = 1.0 - 2.0 * (x * x + y * y)
         self.trueRoll = np.arctan2(t3, t4)
- 
-    #publishes offboard control modes and velocity as trajectory setpoints
-    def cmdloop_callback(self):
-        if(self.offboardMode == True):
-            # Publish offboard control modes
-            offboard_msg = OffboardControlMode()
-            offboard_msg.timestamp = int(Clock().now().nanoseconds / 1000)
-            offboard_msg.position = False
-            offboard_msg.velocity = False
-            offboard_msg.acceleration = False
-            self.publisher_offboard_mode.publish(offboard_msg)            
-
-            # Compute velocity in the world frame
-            cos_yaw = np.cos(self.trueYaw)
-            sin_yaw = np.sin(self.trueYaw)
-            velocity_world_x = (self.velocity.x * cos_yaw - self.velocity.y * sin_yaw)
-            velocity_world_y = (self.velocity.x * sin_yaw + self.velocity.y * cos_yaw)
-
-            # Create and publish TrajectorySetpoint message with NaN values for position and acceleration
-            trajectory_msg = TrajectorySetpoint()
-            trajectory_msg.timestamp = int(Clock().now().nanoseconds / 1000)
-            trajectory_msg.velocity[0] = velocity_world_x
-            trajectory_msg.velocity[1] = velocity_world_y
-            trajectory_msg.velocity[2] = self.velocity.z
-            trajectory_msg.position[0] = float('20')
-            trajectory_msg.position[1] = float('20')
-            trajectory_msg.position[2] = float('20')
-            trajectory_msg.acceleration[0] = float('nan')
-            trajectory_msg.acceleration[1] = float('nan')
-            trajectory_msg.acceleration[2] = float('nan')
-            trajectory_msg.yaw = float('nan')
-            trajectory_msg.yawspeed = self.yaw
-
-            self.publisher_trajectory.publish(trajectory_msg)
-
+  
 
 def main(args=None):
     rclpy.init(args=args)
 
     offboard_control = OffboardControl()
 
-    rclpy.spin(offboard_control)
-
-    offboard_control.destroy_node()
-    rclpy.shutdown()
-
+    try:
+        rclpy.spin(offboard_control)
+    except KeyboardInterrupt:
+        offboard_control.get_logger().info(" KeyboardInterrupt .")
+         
+    finally:
+        offboard_control.destroy_node()
+        rclpy.shutdown()
 
 if __name__ == '__main__':
     main()

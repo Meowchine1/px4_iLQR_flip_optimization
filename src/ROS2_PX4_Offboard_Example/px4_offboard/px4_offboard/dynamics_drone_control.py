@@ -573,89 +573,89 @@ class ModelPredictiveControlNode(Node):
         # Оставляем последний элемент траектории неизменным
         self.x_target_traj = self.x_target_traj.at[horizon].set(self.x_target_traj[horizon - 1])
         
-    def land_targets(self ):
-        return
       
     def run_mpc_thread(self):
-        with self.mpc_lock:
-            start_time = time.time()
-            self.log_ilqr(f"============= phase: {self.phase}=============")
-            try: 
-                self.current_time = self.get_clock().now().nanoseconds * 1e-9
-                if self.phase == 'takeoff':
-                    self.send_msg_to_client("mpc_on")# на всякий случай если сообщене не дойдет с одного раза,
-                                                     # чтобы переключить контроллер полета на прием управления траектории
-                    self.takeoff_targets()
-                    
-                    self.log_ilqr(f"takeoff")
-                    if abs( - self.takeoff_altitude) < self.takeoff_tol:
-                        self.phase = 'flip'
-                        self.flip_started_time = self.current_time 
+        start_time = time.time()
+        self.log_ilqr(f"============= phase: {self.phase}=============")
+        try: 
+            self.current_time = self.get_clock().now().nanoseconds * 1e-9
+            if self.phase == 'takeoff':
+                self.send_msg_to_client("mpc_on")# на всякий случай если сообщене не дойдет с одного раза,
+                                                    # чтобы переключить контроллер полета на прием управления траектории
+                self.takeoff_targets()
+                
+                self.log_ilqr(f"takeoff")
+                if abs( - self.takeoff_altitude) < self.takeoff_tol:
+                    self.phase = 'flip'
+                    self.flip_started_time = self.current_time 
 
-                elif self.phase == 'flip': 
-                    self.flip_targets()
-                    self.log_ilqr(f"flip\nabs(roll_current)={abs(self.roll_current)}") 
+            elif self.phase == 'flip': 
+                self.flip_targets()
+                self.log_ilqr(f"flip\nabs(roll_current)={abs(self.roll_current)}") 
 
-                    if jnp.isclose(self.roll_current, 2 * jnp.pi, atol=0.1):# выражение устойчивее к шуму чем аналогичное с abs  
-                        self.phase = 'recovery'
-                        self.recovery_start_time = self.current_time
+                if jnp.isclose(self.roll_current, 2 * jnp.pi, atol=0.1):# выражение устойчивее к шуму чем аналогичное с abs  
+                    self.phase = 'recovery'
+                    self.recovery_start_time = self.current_time
 
-                elif self.phase == 'recovery':
-                    self.recovery_targets()
-                    if abs(self.roll_current) <= self.roll_abs_tol:
-                        self.phase = 'land'
+            elif self.phase == 'recovery':
+                self.recovery_targets()
+                if abs(self.roll_current) <= self.roll_abs_tol:
+                    self.phase = 'land'
 
-                elif self.phase == 'land':
-                        self.to_client_f = False
-                        self.optimized_traj_f = False
-                        self.done = True
-                        self.send_msg_to_client("land")
+            elif self.phase == 'land':
+                    self.to_client_f = False
+                    self.optimized_traj_f = False
+                    self.done = True
+                    self.send_msg_to_client("land")
 
-                """
-                Вычисляет оптимальную траекторию состояний и управляющих воздействий
-                от текущего состояния self.x0, используя iLQR.
-                """ 
-                self.log_mpc(f"x0:{self.measurnments}")
-                self.log_mpc(f"self.motor_rpms:{self.motor_rpms}")
-                self.log_mpc(f"self.x_target_traj:{self.x_target_traj}")
-                self.log_mpc(f"self.u_target_traj:{self.u_target_traj}")
-                # Используем ILQR для расчета оптимальной траектории
+            """
+            Вычисляет оптимальную траекторию состояний и управляющих воздействий
+            от текущего состояния self.x0, используя iLQR.
+            """ 
+            self.log_mpc(f"x0:{self.measurnments}")
+            self.log_mpc(f"self.motor_rpms:{self.motor_rpms}")
+            self.log_mpc(f"self.x_target_traj:{self.x_target_traj}")
+            self.log_mpc(f"self.u_target_traj:{self.u_target_traj}")
+            # Используем ILQR для расчета оптимальной траектории
 
 
-                measurnments_init = self.measurnments  # (13,)
-                motor_rpms_init = jnp.tile(self.motor_rpms, (horizon, 1))  # (horizon, 4)
-                X_opt, U_opt, i_final, cost_final = self.optimizer.solve( 
-                    x0=measurnments_init,
-                    u_init=motor_rpms_init,
-                    Q=Q,
-                    R=R,
-                    Qf=Qf,
-                    x_target_traj=self.x_target_traj,
-                    u_target_traj=self.u_target_traj
-                )
+            measurnments_init = self.measurnments  # (13,)
+            motor_rpms_init = jnp.tile(self.motor_rpms, (horizon, 1))  # (horizon, 4)
+            X_opt, U_opt, i_final, cost_final = self.optimizer.solve( 
+                x0=measurnments_init,
+                u_init=motor_rpms_init,
+                Q=Q,
+                R=R,
+                Qf=Qf,
+                x_target_traj=self.x_target_traj,
+                u_target_traj=self.u_target_traj
+            )
 
-                self.X_opt = np.array(X_opt)          # Преобразование из jnp в np
-                self.u_optimal = np.array(U_opt[0])      
-                self.i_final = i_final
-                self.cost_final = float(cost_final)   # Обеспечиваем float, а не jnp.scalar
+            self.X_opt = np.array(X_opt)          # Преобразование из jnp в np
+            self.u_optimal = np.array(U_opt[0])      
+            self.i_final = i_final
+            self.cost_final = float(cost_final)   # Обеспечиваем float, а не jnp.scalar
 
-                self.send_optimized_traj()
-                    
-            except Exception as e:
-                self.log_ilqr(f"Ошибка при выполнении MPC: {str(e)}")
-                # Выводим traceback ошибки для детальной диагностики
-                import traceback
-                self.log_ilqr(f"{traceback.format_exc()}")
-            finally:
-                end_time = time.time()
-                elapsed = end_time - start_time
-                self.log_ilqr(f"[mpc_control_loop] END phase: {self.phase}, duration: {elapsed:.3f} s")
-                self.mpc_running = False
+            self.send_optimized_traj()
+                
+        except Exception as e:
+            self.log_ilqr(f"Ошибка при выполнении MPC: {str(e)}")
+            # Выводим traceback ошибки для детальной диагностики
+            import traceback
+            self.log_ilqr(f"{traceback.format_exc()}")
+        finally:
+            end_time = time.time()
+            elapsed = end_time - start_time
+            self.log_ilqr(f"[mpc_control_loop] END phase: {self.phase}, duration: {elapsed:.3f} s")
+            self.mpc_running = False
                
     def mpc_control_loop(self):
-        # Запуск в отдельном потоке
-        if self.optimized_traj_f:
-            threading.Thread(target=self.run_mpc_thread).start()
+        if self.optimized_traj_f and not self.mpc_lock.locked():
+            threading.Thread(target=self.run_mpc_thread_with_lock).start()
+
+    def run_mpc_thread_with_lock(self):
+        with self.mpc_lock:  # 🔒 блокируем доступ другим потокам
+            self.run_mpc_thread()
 
     def ekf_logger(self):
         pos_my_ekf = self.measurnments[0:3]

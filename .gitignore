@@ -15,13 +15,7 @@ venv/
 env/
 ENV/
 
-# CMake
-CMakeCache.txt
-CMakeFiles/
-Makefile
-cmake_install.cmake
-CTestTestfile.cmake
-
+  
 /MY_LOG/
 src/build
 # ROS 2 dependencies (if using venv)
