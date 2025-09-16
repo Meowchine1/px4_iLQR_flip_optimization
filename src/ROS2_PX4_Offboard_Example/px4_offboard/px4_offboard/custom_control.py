@@ -63,7 +63,6 @@ class CustomController(Node):
             self.publish_position_setpoint(x, y, z)
 
  
-
     def plot_data(self):
         plt.figure()
         plt.plot(self.times, self.thrusts, label='thrust_z')

@@ -161,7 +161,7 @@ class OffboardControl(Node):
         if self.arming_state != VehicleStatus.ARMING_STATE_ARMED:
             self.arm()
 
-        if self.offboard_state != VehicleStatus.NAVIGATION_STATE_OFFBOARD:
+        if not self.offboard_state: 
             self.engage_offboard_mode()
 
         # if self.offboard_setpoint_counter == 10:
@@ -256,7 +256,7 @@ class OffboardControl(Node):
         msg = Bool()
         msg.data = (
             (self.arming_state == VehicleStatus.ARMING_STATE_ARMED) and self.offboard_state
-        )
+        )  
         self.control_permission_pub.publish(msg)
 
     def vehicle_status_callback(self, msg):
