@@ -170,9 +170,6 @@ class OffboardControl(Node):
         # if self.offboard_setpoint_counter < 11:
         #     self.offboard_setpoint_counter += 1
 
-         
-
-
         #I tryed to implement state machine but it isnot work clearly as expected
         # match self.current_state:
         #     case "IDLE":
